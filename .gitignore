@@ -1,0 +1,10 @@
+*.exe
+*.dll
+*.pdb
+*.log
+.local/
+bin/
+obj/
+sensor-labels.json
+.env
+.env.*

@@ -1,0 +1,150 @@
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="HardwareDeck" Width="1230" Height="1080" MinWidth="760" MinHeight="640"
+        Background="#0B1117" Foreground="#EDF4FA" FontFamily="Segoe UI"
+        WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <Style x:Key="Card" TargetType="Border">
+      <Setter Property="Background" Value="#111C25"/><Setter Property="BorderBrush" Value="#253442"/>
+      <Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="14"/>
+      <Setter Property="Padding" Value="22"/><Setter Property="Margin" Value="7"/>
+    </Style>
+    <Style x:Key="Label" TargetType="TextBlock">
+      <Setter Property="Foreground" Value="#93A7B8"/><Setter Property="FontSize" Value="12"/>
+    </Style>
+    <Style TargetType="Button">
+      <Setter Property="Foreground" Value="#DCE8F2"/><Setter Property="Background" Value="#1B2B38"/>
+      <Setter Property="Padding" Value="13,9"/><Setter Property="Margin" Value="4"/>
+      <Setter Property="Cursor" Value="Hand"/>
+      <Setter Property="Template"><Setter.Value>
+        <ControlTemplate TargetType="Button">
+          <Border Background="{TemplateBinding Background}" CornerRadius="7" Padding="{TemplateBinding Padding}">
+            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+          </Border>
+          <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#2A4051"/></Trigger>
+          </ControlTemplate.Triggers>
+        </ControlTemplate>
+      </Setter.Value></Setter>
+    </Style>
+    <Style TargetType="ProgressBar">
+      <Setter Property="Height" Value="5"/><Setter Property="Margin" Value="0,12,0,12"/>
+      <Setter Property="Background" Value="#23333F"/><Setter Property="Foreground" Value="#50D7B2"/>
+      <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+  </Window.Resources>
+  <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+  <Grid Margin="22">
+    <Grid.RowDefinitions>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+      <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+    </Grid.RowDefinitions>
+    <DockPanel Margin="7,0,7,14" LastChildFill="True">
+      <StackPanel DockPanel.Dock="Right" VerticalAlignment="Center">
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+          <Button x:Name="AdminButton" Content="启用传感器" Background="#1A4B43"/>
+          <Button x:Name="ScreenButton" Content="下一屏"/>
+          <Button x:Name="PinButton" Content="置顶：关"/>
+          <Button x:Name="FullButton" Content="全屏 F11"/>
+        </StackPanel>
+        <TextBlock x:Name="Clock" Text="--:--:--" HorizontalAlignment="Right" Foreground="#93A7B8" Margin="0,8,5,0"/>
+      </StackPanel>
+      <StackPanel>
+        <TextBlock Text="LOCAL HARDWARE / LIVE" Foreground="#50D7B2" FontSize="10" FontWeight="Bold"/>
+        <TextBlock Text="HardwareDeck" FontSize="31" FontWeight="SemiBold" Margin="0,6,0,4"/>
+        <TextBlock x:Name="MachineName" Text="正在识别本机硬件…" Foreground="#93A7B8" FontSize="12"/>
+      </StackPanel>
+    </DockPanel>
+    <Grid Grid.Row="1">
+      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+      <Border Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Text="01 / PROCESSOR" Foreground="#50D7B2" FontWeight="Bold" FontSize="11"/>
+          <TextBlock x:Name="CpuName" Text="CPU" FontSize="17" Margin="0,9,0,12" TextTrimming="CharacterEllipsis"/>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <StackPanel><TextBlock Text="CPU 负载" Style="{StaticResource Label}"/>
+              <TextBlock x:Name="CpuLoad" Text="—" FontSize="53" FontWeight="Light"/></StackPanel>
+            <StackPanel Grid.Column="1"><TextBlock x:Name="CpuTempLabel" Text="AWCC 温度 1" Style="{StaticResource Label}"/>
+              <TextBlock x:Name="CpuTemp" Text="—" FontSize="53" FontWeight="Light" Foreground="#50D7B2"/></StackPanel>
+          </Grid>
+          <ProgressBar x:Name="CpuBar" Maximum="100"/>
+          <UniformGrid Columns="3" Margin="0,0,0,10">
+            <StackPanel><TextBlock Text="Frequency · 估算" Style="{StaticResource Label}"/><TextBlock x:Name="CpuFrequency" Text="—" FontSize="21" Margin="0,3,0,0"/></StackPanel>
+            <StackPanel><TextBlock Text="Power · RAPL" Style="{StaticResource Label}"/><TextBlock x:Name="CpuPower" Text="—" FontSize="21" Margin="0,3,0,0"/></StackPanel>
+            <StackPanel><TextBlock Text="Voltage" Style="{StaticResource Label}"/><TextBlock x:Name="CpuVoltage" Text="未提供" FontSize="21" Margin="0,3,0,0"/></StackPanel>
+          </UniformGrid>
+          <TextBlock x:Name="CpuHint" Text="温度数据由 AWCC WMI 提供" Style="{StaticResource Label}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+      <Border Grid.Column="1" Style="{StaticResource Card}">
+        <StackPanel>
+          <TextBlock Text="02 / GRAPHICS" Foreground="#8EB8FF" FontWeight="Bold" FontSize="11"/>
+          <TextBlock x:Name="GpuName" Text="NVIDIA GPU" FontSize="17" Margin="0,9,0,12" TextTrimming="CharacterEllipsis"/>
+          <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <StackPanel><TextBlock Text="GPU 负载" Style="{StaticResource Label}"/>
+              <TextBlock x:Name="GpuLoad" Text="—" FontSize="53" FontWeight="Light"/></StackPanel>
+            <StackPanel Grid.Column="1"><TextBlock Text="GPU 温度" Style="{StaticResource Label}"/>
+              <TextBlock x:Name="GpuTemp" Text="—" FontSize="53" FontWeight="Light" Foreground="#8EB8FF"/></StackPanel>
+          </Grid>
+          <ProgressBar x:Name="GpuBar" Foreground="#8EB8FF" Maximum="100"/>
+          <TextBlock x:Name="GpuHint" Text="正在读取 NVIDIA 驱动…" Style="{StaticResource Label}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </Border>
+    </Grid>
+    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="22,15">
+      <Grid>
+        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock Text="系统内存" Style="{StaticResource Label}"/><TextBlock x:Name="Ram" Text="—" FontSize="23" Margin="0,4,0,0"/></StackPanel>
+        <StackPanel Grid.Column="1"><TextBlock Text="显存" Style="{StaticResource Label}"/><TextBlock x:Name="Vram" Text="—" FontSize="23" Margin="0,4,0,0"/></StackPanel>
+        <StackPanel Grid.Column="2"><TextBlock Text="GPU 功耗" Style="{StaticResource Label}"/><TextBlock x:Name="Power" Text="—" FontSize="23" Margin="0,4,0,0"/></StackPanel>
+      </Grid>
+    </Border>
+    <Border Grid.Row="3" Style="{StaticResource Card}" Padding="22,18">
+      <StackPanel>
+        <DockPanel>
+          <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock x:Name="ModeCurrent" Text="当前：读取中" Foreground="#DCE8F2" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
+            <ComboBox x:Name="ModeSelect" Width="170" Foreground="#15202B" VerticalAlignment="Center"/>
+            <Button x:Name="ModeApply" Content="应用" Padding="12,5" IsEnabled="False"/>
+          </StackPanel>
+          <TextBlock Text="03 / COOLING · AWCC 散热模式" Foreground="#E4B77A" FontWeight="Bold" FontSize="11" VerticalAlignment="Center"/>
+        </DockPanel>
+        <TextBlock x:Name="ModeNotice" Text="手动应用标准散热预设；AWCC 自动配置可能覆盖它。" Foreground="#758C9F" FontSize="10" Margin="0,4,0,0"/>
+        <TextBlock x:Name="FanSummary" Text="等待传感器" Foreground="#93A7B8" FontSize="10" Margin="0,4,0,0"/>
+        <WrapPanel x:Name="FanPanel" Margin="-4,12,-4,0"/>
+        <WrapPanel x:Name="TemperaturePanel" Margin="-3,7,-3,0"/>
+        <TextBlock x:Name="AwccState" Text="AWCC 传感器准备中" Foreground="#93A7B8" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"/>
+      </StackPanel>
+    </Border>
+    <Grid Grid.Row="4">
+      <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+      <Border Style="{StaticResource Card}" Padding="22,16">
+        <StackPanel><DockPanel>
+          <TextBlock x:Name="CpuChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#50D7B2" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+          <TextBlock Text="AWCC 温度 1 · 最近 120 秒" x:Name="CpuChartTitle" Style="{StaticResource Label}" VerticalAlignment="Center"/></DockPanel>
+          <Canvas x:Name="CpuChart" Height="126" Background="Transparent" ClipToBounds="True" Margin="0,7,0,0"/>
+          <TextBlock x:Name="CpuChartSummary" Text="等待温度数据" Foreground="#93A7B8" FontSize="10" Margin="0,4,0,0"/></StackPanel>
+      </Border>
+      <Border Grid.Column="1" Style="{StaticResource Card}" Padding="22,16">
+        <StackPanel><DockPanel>
+          <TextBlock x:Name="GpuChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#8EB8FF" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+          <TextBlock Text="GPU 温度 · 最近 120 秒" Style="{StaticResource Label}" VerticalAlignment="Center"/></DockPanel>
+          <Canvas x:Name="GpuChart" Height="126" Background="Transparent" ClipToBounds="True" Margin="0,7,0,0"/>
+          <TextBlock x:Name="GpuChartSummary" Text="等待温度数据" Foreground="#93A7B8" FontSize="10" Margin="0,4,0,0"/></StackPanel>
+      </Border>
+    </Grid>
+    <DockPanel Grid.Row="5" Margin="8,8,8,0">
+      <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+        <TextBlock Text="刷新" VerticalAlignment="Center" Foreground="#93A7B8" Margin="0,0,8,0"/>
+        <ComboBox x:Name="Interval" Width="72" SelectedIndex="1" Foreground="#15202B">
+          <ComboBoxItem Content="1 秒"/><ComboBoxItem Content="2 秒"/><ComboBoxItem Content="5 秒"/>
+        </ComboBox>
+      </StackPanel>
+      <TextBlock x:Name="Footer" Text="本机监测 · 标准模式仅在手动应用时切换 · 数据保留在内存"
+                 Foreground="#758C9F" FontSize="11" VerticalAlignment="Center" TextWrapping="Wrap"/>
+    </DockPanel>
+  </Grid>
+  </ScrollViewer>
+</Window>
