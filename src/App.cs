@@ -82,9 +82,10 @@ namespace HardwareDeck
                 UpdateStatus();
             };
             Find<ScrollViewer>("Viewport").SizeChanged += (s,e) => FitDashboard();
+            Find<Grid>("Dashboard").LayoutUpdated += FitHistoryHeight;
             window.SourceInitialized += (s,e) => FitWindow();
             window.KeyDown += (s,e) => { if (e.Key == System.Windows.Input.Key.F11) ToggleFull(); else if (e.Key == System.Windows.Input.Key.Escape && full) ToggleFull(); };
-            window.Closed += (s,e) => { cancellation.Cancel(); clock.Stop(); };
+            window.Closed += (s,e) => { cancellation.Cancel(); clock.Stop(); Find<Grid>("Dashboard").LayoutUpdated -= FitHistoryHeight; };
             Find<Canvas>("CpuChart").SizeChanged += (s,e) => DrawCharts();
             Find<Canvas>("GpuChart").SizeChanged += (s,e) => DrawCharts();
             Find<Canvas>("CpuChart").MouseMove += (s,e) => InspectChart(Find<Canvas>("CpuChart"),true,e);
@@ -105,7 +106,6 @@ namespace HardwareDeck
             bool compact=viewport.ActualHeight<760;
             var dashboard=Find<Grid>("Dashboard");
             dashboard.MinHeight = Math.Max(0, viewport.ActualHeight - (compact?24:32));
-            Find<Grid>("HistoryPanel").Height=compact?158:220;
             if(compactLayout==compact)return;
             compactLayout=compact;
             dashboard.Margin=new Thickness(20,compact?12:16,20,compact?12:16);
@@ -118,6 +118,16 @@ namespace HardwareDeck
             foreach(var name in new[]{"CpuHint","GpuHint"})Find<TextBlock>(name).Margin=new Thickness(0,compact?5:10,0,0);
             foreach(var name in new[]{"CpuBar","GpuBar"})Find<ProgressBar>(name).Margin=new Thickness(0,compact?5:8,0,compact?8:12);
             foreach(var tile in fanTiles.Values.Concat(temperatureTiles.Values))tile.SetDensity(compact);
+        }
+        void FitHistoryHeight(object sender, EventArgs e)
+        {
+            var dashboard=Find<Grid>("Dashboard");
+            double occupied=dashboard.RowDefinitions.Take(3).Sum(row=>row.ActualHeight);
+            if(occupied<=0)return;
+            double available=Find<ScrollViewer>("Viewport").ActualHeight-dashboard.Margin.Top-dashboard.Margin.Bottom-occupied;
+            var panel=Find<Grid>("HistoryPanel");
+            double height=Math.Max(panel.MinHeight,Math.Min(compactLayout==true?158:220,Math.Floor(available)));
+            if(Math.Abs(panel.Height-height)>0.5)panel.Height=height;
         }
         void FitWindow()
         {

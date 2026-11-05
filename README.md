@@ -15,7 +15,7 @@ Requires Windows 10/11 x64, .NET Framework 4.8, and the appropriate AWCC/NVIDIA 
 The English interface is optimized for a **1920 x 1080 display such as the 22N1**.
 It respects Windows DPI scaling, uses a compact layout when vertical space is limited,
 and keeps status information beside the title. Temperature history panels have a bounded
-height (220 logical pixels, or 158 in compact mode), so fullscreen never stretches the
+height (up to 220 logical pixels, or 158 in compact mode), so fullscreen never stretches the
 plots to fill the remaining screen. The main dashboard fits at 100%, 125%,
 and 150% scaling with the R16 sensor set; smaller windows can scroll. Truncated source
 details are available on hover. Memory values use GiB. A header indicator flags stale data.

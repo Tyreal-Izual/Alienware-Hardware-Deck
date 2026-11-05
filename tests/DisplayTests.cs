@@ -109,6 +109,10 @@ public static class DisplayTests
             Render(deck, window, output, scale, true);
             Render(deck, window, output, scale, false);
         }
+        // Exercise the tightest regular layout, including font-metric differences on CI.
+        Layout((FrameworkElement)window.Content, 1536, 760);
+        Check(((ScrollViewer)window.Content).ScrollableHeight < 1, "Charts must shrink to fit the remaining window height");
+        Check(((Canvas)window.FindName("GpuChart")).ActualHeight >= 90, "Adaptive charts must retain a readable plot");
         var selector = (ComboBox)window.FindName("Interval");
         selector.SelectedIndex = 2;
         Check((int)typeof(DeckWindow).GetField("interval", Private).GetValue(deck) == 5000, "Refresh selector must change the interval");

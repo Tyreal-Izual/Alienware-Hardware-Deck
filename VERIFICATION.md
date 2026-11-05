@@ -6,6 +6,8 @@ view with fixture data. Display tests check 1920 x 1080 at 100%, 125%, and 150% 
 both full height and with room for window chrome/taskbar. They check scrolling, primary
 text clipping, bounded chart height, the one-second default, interval changes, stale-data state, sensor-control
 reuse, and missing-sensor layout. No collector is started during display tests.
+An additional constrained-height check verifies that history panels use the measured
+remaining space rather than overflowing when Windows font metrics differ.
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1`.
 Fixture previews are written to `.local/display-tests/renders`; their values are not live
