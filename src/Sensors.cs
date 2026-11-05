@@ -143,7 +143,7 @@ namespace HardwareDeck
         readonly Dictionary<string, string> labels;
         DateTime nextProbe = DateTime.MinValue;
         public string Status { get; private set; }
-        public AwccReader(Dictionary<string, string> labels) { this.labels = labels; Status = "等待 AWCC 传感器"; }
+        public AwccReader(Dictionary<string, string> labels) { this.labels = labels; Status = "Waiting for AWCC sensors"; }
         // Read operations are separate from the explicitly requested, allowlisted mode setter.
         public static uint QueryArgument(int command, int index)
         {
@@ -180,7 +180,7 @@ namespace HardwareDeck
                 {
                     foreach (ManagementObject item in instances) { device = item; break; }
                 }
-                if (device == null) { Status = "这台电脑没有可用的 AWCC 传感器接口"; return; }
+                if (device == null) { Status = "No compatible AWCC interface on this computer"; return; }
                 queryTemplate = device.GetMethodParameters("Thermal_Information");
                 // Upstream routes association opcode 2 to GetFanSensors, not Thermal_Information.
                 try{fanSensorTemplate=device.GetMethodParameters(FanSensorMethod);}catch{fanSensorTemplate=null;}
@@ -197,11 +197,11 @@ namespace HardwareDeck
                     fanMaximums[id] = Values.Range(Query(9, id), 1, 30000);
                     fanSensorCodes[id]=ReadFanSensorCode(id);
                 }
-                Status = (fanIds.Count + temperatureIds.Count > 0) ? "AWCC · 只读传感器已连接" : "AWCC 未返回兼容的传感器";
+                Status = (fanIds.Count + temperatureIds.Count > 0) ? "AWCC sensors connected" : "AWCC returned no compatible sensors";
             }
-            catch (UnauthorizedAccessException) { Reset("AWCC 需要管理员权限 · 点击“启用传感器”"); }
-            catch (ManagementException ex) { Reset(ex.ErrorCode == ManagementStatus.AccessDenied ? "AWCC 需要管理员权限 · 点击“启用传感器”" : "AWCC 暂不可用 · " + ex.ErrorCode); }
-            catch (Exception ex) { Reset("AWCC 暂不可用 · " + ex.GetType().Name); }
+            catch (UnauthorizedAccessException) { Reset("AWCC needs administrator access · Select Enable sensors"); }
+            catch (ManagementException ex) { Reset(ex.ErrorCode == ManagementStatus.AccessDenied ? "AWCC needs administrator access · Select Enable sensors" : "AWCC unavailable · " + ex.ErrorCode); }
+            catch (Exception ex) { Reset("AWCC unavailable · " + ex.GetType().Name); }
         }
         void Reset(string message)
         {
@@ -223,13 +223,13 @@ namespace HardwareDeck
                 for (int i = 0; i < temperatureIds.Count; i++)
                 {
                     int id = temperatureIds[i]; string key = "awcc.temp." + id;
-                    readings.Add(new Reading { Id = key, Name = Label(key, "AWCC 温度 " + (i + 1)),
+                    readings.Add(new Reading { Id = key, Name = Label(key, "AWCC temp " + (i + 1)),
                         Kind = "temperature", Value = Values.Range(Query(4, id), 0, 150), Source = "AWCC WMI" });
                 }
                 for (int i = 0; i < fanIds.Count; i++)
                 {
                     int id = fanIds[i]; string key = "awcc.fan." + id;
-                    readings.Add(new Reading { Id = key, Name = Label(key, "风扇 " + (i + 1)),
+                    readings.Add(new Reading { Id = key, Name = Label(key, "Fan " + (i + 1)),
                         Kind = "fan", Value = Values.Range(Query(5, id), 0, 30000),
                         Maximum = fanMaximums[id], Source = "AWCC WMI",
                         FanSensorCode=fanSensorCodes[id],
@@ -238,7 +238,7 @@ namespace HardwareDeck
                             MatchFanTemperature(fanSensorCodes[id],temperatureIds)!=null?"temperature-id-match":"unmatched-code" });
                 }
             }
-            catch (Exception ex) { Reset("AWCC 读数暂不可用 · " + ex.GetType().Name); }
+            catch (Exception ex) { Reset("AWCC readings unavailable · " + ex.GetType().Name); }
             return readings;
         }
         public ThermalModeState ReadMode()
@@ -249,32 +249,32 @@ namespace HardwareDeck
             }
             var preset=presets.FirstOrDefault(p=>p.Id==current);
             return new ThermalModeState{CurrentId=current,
-                CurrentName=preset!=null?preset.Name:current==0?"Custom · 自定义":current.HasValue?"未知模式 "+current:"未连接",
+                CurrentName=preset!=null?preset.Name:current==0?"Custom":current.HasValue?"Unknown mode "+current:"Disconnected",
                 Presets=presets.ToList(),CanChange=device!=null && Collector.IsAdmin && presets.Count>0 && current.HasValue,
-                Detail="仅切换固件散热预设；AWCC 游戏/自动配置仍可能覆盖它"};
+                Detail="Standard firmware presets only. AWCC automation may override the selected mode."};
         }
         public ModeResult ApplyMode(int mode)
         {
             var result=new ModeResult{Requested=mode};
             try{
-                if(device==null || !Collector.IsAdmin)throw new InvalidOperationException("需要已连接的 AWCC 传感器和管理员权限");
+                if(device==null || !Collector.IsAdmin)throw new InvalidOperationException("Connected AWCC sensors and administrator access are required");
                 uint argument=ModeCatalog.ControlArgument(mode,presets);
                 var before=ReadMode();
-                if(!before.CurrentId.HasValue)throw new InvalidOperationException("无法读取当前模式，未执行修改");
-                if(before.CurrentId==mode)return new ModeResult{Success=true,Requested=mode,Actual=mode,Message="已经是所选散热模式"};
+                if(!before.CurrentId.HasValue)throw new InvalidOperationException("Cannot read the current mode; no changes made");
+                if(before.CurrentId==mode)return new ModeResult{Success=true,Requested=mode,Actual=mode,Message="The selected preset is already active"};
                 using(var input=device.GetMethodParameters("Thermal_Control")){
                     input["arg2"]=argument;
                     using(var output=device.InvokeMethod("Thermal_Control",input,new InvokeMethodOptions{Timeout=TimeSpan.FromSeconds(2)})){
-                        if(output==null)throw new InvalidOperationException("固件没有确认模式请求");
+                        if(output==null)throw new InvalidOperationException("Firmware did not acknowledge the mode request");
                     }
                 }
                 for(int attempt=0;attempt<4;attempt++){
                     Thread.Sleep(150);
                     result.Actual=ReadMode().CurrentId;
-                    if(result.Actual==mode){result.Success=true;result.Message="已切换并读回确认："+presets.First(p=>p.Id==mode).Name;return result;}
+                    if(result.Actual==mode){result.Success=true;result.Message="Applied and verified: "+presets.First(p=>p.Id==mode).Name;return result;}
                 }
-                result.Message="读回模式与请求不一致；可能被 AWCC 自动配置覆盖。";
-            }catch(Exception ex){result.Message="未完成切换："+ex.Message;result.Actual=ReadMode().CurrentId;}
+                result.Message="Readback does not match the request. AWCC automation may have overridden it.";
+            }catch(Exception ex){result.Message="Mode change failed: "+ex.Message;result.Actual=ReadMode().CurrentId;}
             return result;
         }
         public void Dispose() { if (queryTemplate != null) queryTemplate.Dispose(); if (fanSensorTemplate != null) fanSensorTemplate.Dispose(); if (device != null) device.Dispose(); }

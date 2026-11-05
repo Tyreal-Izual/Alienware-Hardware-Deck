@@ -16,7 +16,7 @@ namespace HardwareDeck
         public static SensorConfiguration Parse(string json)
         {
             var root=new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string,object>;
-            if(root==null)throw new FormatException("sensor-labels.json 必须是 JSON 对象");
+            if(root==null)throw new FormatException("sensor-labels.json must contain a JSON object");
             var result=new SensorConfiguration();
             object value;
             if(root.TryGetValue("cpuTemperatureSensor",out value) && value!=null){
@@ -25,7 +25,7 @@ namespace HardwareDeck
                 if(id==null || !id.StartsWith("awcc.temp.",StringComparison.Ordinal) ||
                     !int.TryParse(id.Substring(10),NumberStyles.None,CultureInfo.InvariantCulture,out number) ||
                     number<1 || number>255 || id!="awcc.temp."+number.ToString(CultureInfo.InvariantCulture))
-                    throw new FormatException("cpuTemperatureSensor 必须是 awcc.temp.<编号>");
+                    throw new FormatException("cpuTemperatureSensor must be awcc.temp.<number>");
                 result.CpuTemperatureSensorId=id;
             }
             // Older flat label maps remain valid.
@@ -34,9 +34,9 @@ namespace HardwareDeck
                     result.Labels[item.Key]=(string)item.Value;
             if(root.TryGetValue("labels",out value)){
                 var labels=value as Dictionary<string,object>;
-                if(labels==null)throw new FormatException("labels 必须是对象");
+                if(labels==null)throw new FormatException("labels must be an object");
                 foreach(var item in labels){
-                    if(!(item.Value is string))throw new FormatException("传感器名称必须是字符串");
+                    if(!(item.Value is string))throw new FormatException("Sensor labels must be strings");
                     result.Labels[item.Key]=(string)item.Value;
                 }
             }
@@ -57,12 +57,12 @@ namespace HardwareDeck
         }
         public string DescribeSelection(Reading selected)
         {
-            if(Error!=null)return "传感器配置无效："+Error;
+            if(Error!=null)return "Invalid sensor configuration: "+Error;
             if(CpuTemperatureSensorId!=null)
-                return selected!=null?"配置的 CPU 温度源："+CpuTemperatureSensorId:
-                    "指定温度源 "+CpuTemperatureSensorId+" 当前不可用；未自动换源";
-            return selected==null?"没有可用的 AWCC 温度源":
-                "自动选择首个温度："+selected.Id+"（尚未确认 CPU 身份）";
+                return selected!=null?"Selected temperature source: "+CpuTemperatureSensorId:
+                    "Selected source "+CpuTemperatureSensorId+" is unavailable; no automatic substitution";
+            return selected==null?"No AWCC temperature source available":
+                "Auto-selected source: "+selected.Id+" (CPU identity unconfirmed)";
         }
     }
 }

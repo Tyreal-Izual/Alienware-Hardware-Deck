@@ -1,61 +1,88 @@
 # HardwareDeck
 
-独立的 Windows 原生硬件面板，面向 Alienware Aurora R16。可用于副屏常驻，与 [PulseDeck](https://github.com/Tyreal-Izual/PulseDeck) 分开运行。
+An independent native Windows hardware dashboard for the Alienware Aurora R16.
+Designed for an always-visible secondary display, running separately from [PulseDeck](https://github.com/Tyreal-Izual/PulseDeck).
 
-## 启动
+## Launch
 
-需要 Windows 10/11 x64、.NET Framework 4.8，以及相应的 AWCC/NVIDIA 驱动。
+Requires Windows 10/11 x64, .NET Framework 4.8, and the appropriate AWCC/NVIDIA drivers.
 
-- 双击 **Start-HardwareDeck.cmd**：普通权限启动。首次运行会自动从源码编译。
-- 双击 **Start-With-Sensors.cmd**：申请管理员权限，启用 AWCC 温度、风扇和散热模式控制。
-- 支持置顶、切换显示器、F11 全屏，以及 1/2/5 秒刷新。关闭窗口即停止采集。
-- 更新源码后，先关闭窗口，再运行 `powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1`。
+- **Start-HardwareDeck.cmd** starts with standard permissions and builds from source if the executable is missing.
+- **Start-With-Sensors.cmd** requests administrator access for AWCC temperature, fan RPM, and thermal presets.
+- Refresh defaults to **1 second**; the header offers 1/2/5-second intervals, pinning, display switching, and fullscreen (F11 / Esc).
+- Close the window to stop sampling. After source updates, close the app and run `powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1`.
 
-没有云端账号、遥测上传、HTTP 服务或自动驱动安装。正常采样在内存中运行，不定时写快照，也不反复启动 GPU 查询进程。当前尚未采用后台服务架构，完整传感器启动仍需 UAC。
+The English interface is optimized for a **1920 x 1080 display such as the 22N1**.
+It respects Windows DPI scaling, uses a compact layout when vertical space is limited,
+and keeps status information beside the title. Temperature history panels have a bounded
+height (220 logical pixels, or 158 in compact mode), so fullscreen never stretches the
+plots to fill the remaining screen. The main dashboard fits at 100%, 125%,
+and 150% scaling with the R16 sensor set; smaller windows can scroll. Truncated source
+details are available on hover. Memory values use GiB. A header indicator flags stale data.
 
-## 数据与边界
+There are no cloud accounts, telemetry uploads, HTTP services, or automatic driver installs.
+Normal sampling stays in memory without periodic snapshots or repeated GPU helper processes.
+Sensor tiles and brushes are reused between refreshes. Full sensor access still requires UAC;
+the app does not yet use a separate privileged service.
 
-| 数据 | 来源与限制 |
+## Sources and limitations
+
+| Metric | Source and limitations |
 | --- | --- |
-| CPU 负载 / 内存 | Windows 系统接口 |
-| CPU 频率 | Windows 性能计数器估算，不是单核瞬时峰值 |
-| CPU 功耗 | Intel IPF/RAPL；启动预热并过滤异常值 |
-| CPU 电压 | 仅读取已有兼容 WMI 电压源；没有可靠来源时显示“未提供” |
-| GPU 指标 | 进程内 NVIDIA NVML；风扇值为驱动报告的百分比 |
-| AWCC 温度 / RPM | 本机 WMI；需要管理员权限，其他机型未保证兼容 |
-| 风扇关联 | `GetFanSensors` 子命令 2；关联码不等于物理安装位置 |
+| CPU load / memory | Windows system APIs |
+| CPU frequency | Windows performance-counter estimate, not an instantaneous per-core peak |
+| CPU power | Intel IPF/RAPL, with warmup and invalid-value filtering |
+| CPU voltage | The installed Intel XTU service's voltage getter, also used by AWCC on this R16; administrator access required. Existing compatible WMI sources are a fallback. |
+| GPU metrics | In-process NVIDIA NVML; fan speed is a driver-reported percentage |
+| AWCC temperature / RPM | Local WMI; administrator access required; other models are not guaranteed |
+| Fan association | `GetFanSensors` subcommand 2; association codes do not identify physical fan positions |
 
-**模式控制仅在点击“应用”后执行。** Quiet、Balanced、Performance 必须同时通过本机 AWCC 配置及固件枚举验证，操作后读回确认。不提供自定义风扇曲线、电压或超频写入。AWCC 自动配置可能覆盖手动选择。
+**Thermal modes change only when you click Apply.** Quiet, Balanced, and Performance must
+match both local AWCC configuration and firmware enumeration. Changes are confirmed by
+readback. Custom fan curves, voltage changes, and overclock writes are not supported.
+AWCC automation may override a manually selected preset.
 
-## 温度源配置
+Voltage sampling uses a read-only local named-pipe contract containing only
+`GetCoreVoltageValue`. It does not initialize the full tuning SDK, install drivers, start
+services, or change voltage settings. The XTU connection is reused, requests have bounded
+timeouts, and failures back off for 60 seconds. Hover over CPU voltage for its source or
+failure reason. The private service contract may change with future AWCC/XTU versions;
+unsupported or absent sources remain Unavailable rather than showing a substitute value.
 
-首次编译生成本机 `sensor-labels.json`，该文件不提交 Git。可参照 `sensor-labels.example.json`：
+## Temperature-source configuration
+
+The first build creates a local, Git-ignored `sensor-labels.json`. See `sensor-labels.example.json`:
 
 ```json
 {
   "cpuTemperatureSensor": "awcc.temp.1",
   "labels": {
-    "awcc.temp.1": "CPU 温度（确认后命名）"
+    "awcc.temp.1": "CPU temperature (confirm sensor identity first)"
   }
 }
 ```
 
-指定 ID 缺失时不会换用别的温度。设为 null 时兼容首个温度的自动选择，并标明 CPU 身份尚未确认。旧版扁平名称映射仍支持。修改配置后重启；悬停风扇卡片可查看关联信息。
+A missing selected ID is never silently replaced with another temperature source.
+Setting the ID to null retains legacy first-sensor selection and labels its CPU identity
+as unconfirmed. Legacy flat label maps remain supported. Restart after configuration
+changes; hover over a fan tile to inspect its association information.
 
-## 开发与验证
+## Development and validation
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File Test.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Packaging.Tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1
 ```
 
-`Build.ps1 -OutputPath .local/build/HardwareDeck.exe` 会同时复制运行所需资源。
-只读诊断导出：`HardwareDeck.exe --probe C:\path\snapshot.json`。
-内部界面预览：`HardwareDeck.exe --preview C:\path\preview.png`。
+`Build.ps1 -OutputPath .local/build/HardwareDeck.exe` also copies runtime resources.
+Read-only diagnostics: `HardwareDeck.exe --probe C:\path\snapshot.json`.
+Live preview export: `HardwareDeck.exe --preview C:\path\preview.png`.
+Display tests render fixture previews to `.local/display-tests/renders` without collecting hardware data.
 
-`src/Sensors.cs`、`CpuTelemetry.cs` 和 `NvidiaReader.cs` 负责采集；
-`SensorConfiguration.cs` 负责数据源选择；`App.cs` 与 `View.xaml` 负责界面。
-测试不切换实际硬件模式。详见 [验证范围](VERIFICATION.md)。
+`src/Sensors.cs`, `CpuTelemetry.cs`, `XtuVoltageReader.cs`, and `NvidiaReader.cs` collect data;
+`SensorConfiguration.cs` selects the source; `App.cs` and `View.xaml` implement the UI.
+Tests do not change actual hardware modes. See [validation scope](VERIFICATION.md).
 
-MIT 许可。AWCC 协议映射参考 AlienFX Tools，原始许可见 [第三方声明](THIRD-PARTY-NOTICES.md)。
+MIT licensed. AWCC protocol mappings are adapted from AlienFX Tools; see [third-party notices](THIRD-PARTY-NOTICES.md).

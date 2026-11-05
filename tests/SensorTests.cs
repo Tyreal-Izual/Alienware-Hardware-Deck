@@ -2,8 +2,15 @@ using System;
 using HardwareDeck;
 using System.Collections.Generic;
 using System.IO;
+using System.ServiceModel;
 public static class SensorTests
 {
+    sealed class FakeVoltage : IXtuVoltageReadOnly
+    {
+        public Func<decimal> Next;
+        public int Reads;
+        public decimal GetCoreVoltageValue(){Reads++;return Next();}
+    }
     static int count;
     static void Check(bool good,string name){if(!good)throw new Exception(name);count++;}
     static void Reject(Action action,string name){try{action();}catch(ArgumentOutOfRangeException){count++;return;}throw new Exception(name);}
@@ -62,6 +69,36 @@ public static class SensorTests
             var invalid=SensorConfiguration.Load(file);
             Check(invalid.Error!=null && invalid.SelectCpuTemperature(readings)==null,"Invalid configuration reports error rather than choosing a fallback");
         }finally{File.Delete(file);}
-        Console.WriteLine(count+" sensor, configuration and mode contract checks passed.");return 0;
+        var now=new DateTime(2026,11,5,12,0,0,DateTimeKind.Utc);
+        int opens=0;
+        var voltage=new FakeVoltage{Next=()=>1.409m};
+        using(var xtu=new XtuVoltageReader(()=>{opens++;return voltage;},()=>now,false)){
+            Check(xtu.Read()==null && opens==0,"Standard-user voltage reads must not open a privileged connection");
+            Check(xtu.Status.Contains("administrator"),"Missing voltage permissions must be explained");
+        }
+        var reader=new XtuVoltageReader(()=>{opens++;return voltage;},()=>now,true);
+        Check(reader.Read()==1.409,"Use XTU volts directly without unit conversion");
+        voltage.Next=()=>0.737m;
+        Check(reader.Read()==0.737 && opens==1,"Reuse the connection and accept changing voltage samples");
+        voltage.Next=()=>{throw new TimeoutException();};
+        Check(reader.Read()==null && reader.Status.Contains("TimeoutException"),"A failed sample must not retain an old voltage");
+        int readsAfterFailure=voltage.Reads;
+        now=now.AddSeconds(59);
+        Check(reader.Read()==null && voltage.Reads==readsAfterFailure && opens==1,"Failed voltage sources must back off");
+        now=now.AddSeconds(1);voltage.Next=()=>1.125m;
+        Check(reader.Read()==1.125 && opens==2,"Reconnect after the backoff and recover voltage sampling");
+        Check(reader.Status==XtuVoltageReader.Source,"Recovery must clear the voltage error");
+        reader.Dispose();
+        Check(reader.Read()==null && opens==2,"Disposed voltage readers must not reconnect");
+        foreach(var invalidVoltage in new[]{-1m,0m,3m}){
+            voltage.Next=()=>invalidVoltage;
+            using(var invalidReader=new XtuVoltageReader(()=>voltage,()=>now,true))
+                Check(invalidReader.Read()==null,"Reject unavailable or implausible XTU voltage: "+invalidVoltage);
+        }
+        var operations=typeof(IXtuVoltageReadOnly).GetMethods();
+        Check(operations.Length==1 && operations[0].Name=="GetCoreVoltageValue","The XTU wire contract must expose only the voltage getter");
+        var operation=(OperationContractAttribute)Attribute.GetCustomAttribute(operations[0],typeof(OperationContractAttribute));
+        Check(operation.Action=="http://tempuri.org/IXtuTuning/GetCoreVoltageValue","Voltage request must match the installed XTU contract");
+        Console.WriteLine(count+" sensor, configuration, voltage and mode contract checks passed.");return 0;
     }
 }

@@ -16,3 +16,6 @@ jobs:
       - name: Clean-checkout packaging
         shell: powershell
         run: ./tests/Packaging.Tests.ps1
+      - name: WPF layout and refresh
+        shell: powershell
+        run: ./tests/Display.Tests.ps1

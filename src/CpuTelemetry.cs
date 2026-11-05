@@ -29,6 +29,7 @@ namespace HardwareDeck
         DateTime nextPowerProbe=DateTime.MinValue,nextVoltageProbe=DateTime.MinValue;
         string voltageName;
         bool powerPrimed;
+        readonly XtuVoltageReader xtuVoltage = new XtuVoltageReader();
         public CpuTelemetryReader()
         {
             try {
@@ -92,8 +93,8 @@ namespace HardwareDeck
         }
         public CpuTelemetry Read()
         {
-            var value=new CpuTelemetry{FrequencySource="Windows 性能计数器估算",PowerSource="Intel IPF · RAPL / CPU participant 0",
-                VoltageSource="未找到实时电压源；不使用 SMBIOS 标称值",VoltageLabel="Voltage"};
+            var value=new CpuTelemetry{FrequencySource="Estimated from Windows performance counters",PowerSource="Intel IPF · RAPL / CPU participant 0",
+                VoltageSource="No live voltage source; nominal SMBIOS voltage is not used",VoltageLabel="Voltage"};
             if(nominal!=null && performance!=null){
                 try {if(frequencyPrimed)value.FrequencyGHz=Frequency(nominal.NextValue(),performance.NextValue());}catch{}
             }
@@ -102,10 +103,15 @@ namespace HardwareDeck
                 try{powerSensor.Get();if(powerPrimed && powerSensor["Power"]!=null)value.PowerWatts=RaplPower(Convert.ToDouble(powerSensor["Power"],CultureInfo.InvariantCulture));powerPrimed=true;}
                 catch{powerSensor.Dispose();powerSensor=null;}
             }
-            FindVoltage();
-            if(voltageSensor!=null){
-                try{voltageSensor.Get();value.VoltageVolts=Values.Range(Convert.ToDouble(voltageSensor["Value"],CultureInfo.InvariantCulture),0.1,2.5);value.VoltageSource=voltageName;}
-                catch{voltageSensor.Dispose();voltageSensor=null;}
+            value.VoltageVolts=xtuVoltage.Read();
+            value.VoltageSource=xtuVoltage.Status;
+            if(!value.VoltageVolts.HasValue){
+                FindVoltage();
+                if(voltageSensor!=null){
+                    try{voltageSensor.Get();value.VoltageVolts=Values.Range(Convert.ToDouble(voltageSensor["Value"],CultureInfo.InvariantCulture),0.1,2.5);
+                        if(value.VoltageVolts.HasValue)value.VoltageSource=voltageName;}
+                    catch{voltageSensor.Dispose();voltageSensor=null;}
+                }
             }
             return value;
         }
@@ -113,6 +119,7 @@ namespace HardwareDeck
         {
             if(nominal!=null)nominal.Dispose();if(performance!=null)performance.Dispose();
             if(powerSensor!=null)powerSensor.Dispose();if(voltageSensor!=null)voltageSensor.Dispose();
+            xtuVoltage.Dispose();
         }
     }
     public sealed class ThermalPreset
@@ -141,9 +148,9 @@ namespace HardwareDeck
         public static List<ThermalPreset> Parse(string json,IEnumerable<int> supported)
         {
             var allowed=new Dictionary<string,ThermalPreset>{
-                {"UsttQuiet",new ThermalPreset{Id=163,Name="Quiet · 安静"}},
-                {"UsttBalanced",new ThermalPreset{Id=160,Name="Balanced · 均衡"}},
-                {"UsttPerformance",new ThermalPreset{Id=161,Name="Performance · 性能"}}
+                {"UsttQuiet",new ThermalPreset{Id=163,Name="Quiet"}},
+                {"UsttBalanced",new ThermalPreset{Id=160,Name="Balanced"}},
+                {"UsttPerformance",new ThermalPreset{Id=161,Name="Performance"}}
             };
             var result=new List<ThermalPreset>();
             var root=new JavaScriptSerializer().DeserializeObject(json) as Dictionary<string,object>;

@@ -38,7 +38,7 @@ namespace HardwareDeck
         {
             var address=GetProcAddress(library,symbol);
             if(address==IntPtr.Zero){
-                if(required)throw new InvalidOperationException("NVML 缺少 "+symbol);
+                if(required)throw new InvalidOperationException("NVML is missing "+symbol);
                 return null;
             }
             return Marshal.GetDelegateForFunctionPointer(address,typeof(T)) as T;
@@ -50,15 +50,15 @@ namespace HardwareDeck
             nextTry=DateTime.UtcNow.AddSeconds(60);
             try {
                 var path=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"nvml.dll");
-                if(!File.Exists(path))throw new InvalidOperationException("未找到 NVIDIA NVML 驱动库");
+                if(!File.Exists(path))throw new InvalidOperationException("NVIDIA NVML driver library not found");
                 library=LoadLibraryEx(path,IntPtr.Zero,0x00000800);
-                if(library==IntPtr.Zero)throw new InvalidOperationException("无法加载 NVIDIA NVML 驱动库");
+                if(library==IntPtr.Zero)throw new InvalidOperationException("Unable to load NVIDIA NVML driver library");
                 shutdown=Bind<Basic>("nvmlShutdown",true);
                 int status=Bind<Basic>("nvmlInit_v2",true)();
-                if(status!=0)throw new InvalidOperationException("NVML 初始化失败 ("+status+")");
+                if(status!=0)throw new InvalidOperationException("NVML initialization failed ("+status+")");
                 initialized=true;
                 status=Bind<Handle>("nvmlDeviceGetHandleByIndex_v2",true)(0,out device);
-                if(status!=0)throw new InvalidOperationException("NVML 未找到可用显卡 ("+status+")");
+                if(status!=0)throw new InvalidOperationException("NVML found no available GPU ("+status+")");
                 var text=new StringBuilder(96);
                 if(Bind<Name>("nvmlDeviceGetName",true)(device,text,96)==0)name=text.ToString();
                 temperature=Bind<Temperature>("nvmlDeviceGetTemperatureV");
@@ -80,7 +80,7 @@ namespace HardwareDeck
         }
         public GpuData Read()
         {
-            if(!Open())return new GpuData{Error=error??"NVIDIA NVML 暂不可用"};
+            if(!Open())return new GpuData{Error=error??"NVIDIA NVML unavailable"};
             var result=new GpuData{Name=name};
             var thermal=new TemperatureInfo{Version=(uint)(Marshal.SizeOf(typeof(TemperatureInfo)) | (1<<24)),Sensor=0};
             uint value;
@@ -100,7 +100,7 @@ namespace HardwareDeck
             result.PowerLimitWatts=ReadUnsigned(powerLimit,1000);
             if(clock!=null && clock(device,0,out value)==0)result.ClockMHz=value;
             if(!result.Temperature.HasValue && !result.Load.HasValue && !result.MemoryTotalMiB.HasValue){
-                result.Error="NVML 驱动暂无有效读数";error=result.Error;Close();nextTry=DateTime.UtcNow.AddSeconds(30);
+                result.Error="NVML has no valid readings";error=result.Error;Close();nextTry=DateTime.UtcNow.AddSeconds(30);
             }
             return result;
         }
