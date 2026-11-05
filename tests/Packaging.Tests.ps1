@@ -13,7 +13,7 @@ function Start-Process {
 }
 try {
     New-Item -ItemType Directory -Path $workspace -Force | Out-Null
-    foreach($folder in @('src','scripts')){Copy-Item -LiteralPath (Join-Path $root $folder) -Destination $workspace -Recurse}
+    foreach($folder in @('src','scripts','assets')){Copy-Item -LiteralPath (Join-Path $root $folder) -Destination $workspace -Recurse}
     foreach($file in @('Build.ps1','View.xaml','HardwareDeck.exe.config','app.manifest','sensor-labels.example.json')){
         Copy-Item -LiteralPath (Join-Path $root $file) -Destination $workspace
     }

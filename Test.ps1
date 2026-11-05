@@ -9,7 +9,9 @@ $argsForCompiler += Join-Path $PSScriptRoot 'src\SensorConfiguration.cs'
 $argsForCompiler += Join-Path $PSScriptRoot 'src\CpuTelemetry.cs'
 $argsForCompiler += Join-Path $PSScriptRoot 'src\NvidiaReader.cs'
 $argsForCompiler += Join-Path $PSScriptRoot 'src\XtuVoltageReader.cs'
+$argsForCompiler += Join-Path $PSScriptRoot 'src\WindowPreferences.cs'
 $argsForCompiler += Join-Path $PSScriptRoot 'tests\SensorTests.cs'
+$argsForCompiler += Join-Path $PSScriptRoot 'tests\WindowPreferencesTests.cs'
 & $compiler @argsForCompiler
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 try { & $testExe; $result=$LASTEXITCODE } finally { Remove-Item -LiteralPath $testExe -ErrorAction SilentlyContinue }

@@ -8,7 +8,7 @@ Designed for an always-visible secondary display, running separately from [Pulse
 Requires Windows 10/11 x64, .NET Framework 4.8, and the appropriate AWCC/NVIDIA drivers.
 
 - **Start-HardwareDeck.cmd** starts with standard permissions and builds from source if the executable is missing.
-- **Start-With-Sensors.cmd** requests administrator access for AWCC temperature, fan RPM, and thermal presets.
+- **Start-With-Sensors.cmd** requests administrator access for AWCC temperature, fan RPM, CPU voltage, and thermal presets.
 - Refresh defaults to **1 second**; the header offers 1/2/5-second intervals, pinning, display switching, and fullscreen (F11 / Esc).
 - Close the window to stop sampling. After source updates, close the app and run `powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1`.
 
@@ -20,10 +20,33 @@ plots to fill the remaining screen. The main dashboard fits at 100%, 125%,
 and 150% scaling with the R16 sensor set; smaller windows can scroll. Truncated source
 details are available on hover. Memory values use GiB. A header indicator flags stale data.
 
+Windowed mode uses a dark native title bar and a subtle matching border on supported
+Windows versions, retaining Windows caption buttons, resizing, and snapping. The application
+icon is embedded for the title bar, taskbar, and executable; no separate runtime icon file
+is required. System high-contrast colors take precedence over the custom frame palette.
+
 There are no cloud accounts, telemetry uploads, HTTP services, or automatic driver installs.
 Normal sampling stays in memory without periodic snapshots or repeated GPU helper processes.
 Sensor tiles and brushes are reused between refreshes. Full sensor access still requires UAC;
 the app does not yet use a separate privileged service.
+
+## Window placement
+
+HardwareDeck remembers the monitor, normal-window position and size, fullscreen/maximized
+state, and pin setting. Preferences are saved to
+`%LOCALAPPDATA%\HardwareDeck\window-state.json` after placement changes settle and when
+the window closes. Normal and administrator launches under the same Windows account
+share this file; enabling sensors saves placement before restarting.
+
+Monitor identity takes precedence over Windows display numbering. Position and size are
+stored relative to the display's working area in logical units, then adapted to its
+current DPI and available space. If the preferred monitor is disconnected, the window
+opens on an available display and retains the missing monitor preference until you
+deliberately move/resize the window or choose Next display. Invalid settings fall back to
+visible defaults. Diagnostic probes and preview exports do not change these preferences.
+Exiting fullscreen follows the current monitor, including moves made through Windows.
+To reset placement, close every HardwareDeck window and remove only `window-state.json`
+from the user-data folder above; the next launch uses visible defaults.
 
 ## Sources and limitations
 
@@ -80,9 +103,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1
 Read-only diagnostics: `HardwareDeck.exe --probe C:\path\snapshot.json`.
 Live preview export: `HardwareDeck.exe --preview C:\path\preview.png`.
 Display tests render fixture previews to `.local/display-tests/renders` without collecting hardware data.
+The icon source is `assets/HardwareDeck.svg`; regenerate the multi-size Windows icon with
+`powershell -NoProfile -ExecutionPolicy Bypass -File scripts/Build-Icon.ps1`.
 
 `src/Sensors.cs`, `CpuTelemetry.cs`, `XtuVoltageReader.cs`, and `NvidiaReader.cs` collect data;
 `SensorConfiguration.cs` selects the source; `App.cs` and `View.xaml` implement the UI.
+`WindowPreferences.cs` and `WindowPlacementSession.cs` manage per-user placement and DPI
+restoration; `WindowAppearance.cs` owns the native frame palette and embedded window icon.
 Tests do not change actual hardware modes. See [validation scope](VERIFICATION.md).
+See [the changelog](CHANGELOG.md) for the current window-persistence and appearance update.
 
 MIT licensed. AWCC protocol mappings are adapted from AlienFX Tools; see [third-party notices](THIRD-PARTY-NOTICES.md).

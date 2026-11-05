@@ -28,7 +28,32 @@ No tuning SDK initialization, driver installation, or hardware-setting writes we
 Unit checks cover permissions, connection reuse, null-on-failure, retry backoff/recovery,
 invalid values, disposal, and the getter-only service contract.
 
+Window placement persistence (2026-11-05): 32 checks cover settings round trips, invalid
+files, monitor identity versus display numbering, working-area offsets, DPI changes,
+and disconnected/smaller displays. Offscreen display tests also verify that they do not
+write window preferences. Live runs with an isolated settings file verified exact normal
+window position/size after reopening, 1920 x 1080 fullscreen plus pin restoration,
+maximized restoration, and fallback from a simulated missing monitor to the available
+150%-scale display while retaining the missing-monitor preference. The first-render
+restore pass prevents WPF startup layout from overwriting saved fullscreen dimensions.
+The pre-push review reproduced a one-pixel overflow at fractional DPI on an odd-sized
+working area. Integer-size-first clamping fixes it, with a regression check. Additional
+checks cover rebasing normal geometry onto the current monitor without mutating the
+stored preferred-monitor snapshot.
+
+Native frame and icon (2026-11-05): the live window showed a dark title bar and custom
+icon in normal/maximized modes, after F11/Esc transitions, and after reopening with an
+isolated settings file. Dark-mode readback was enabled and a native small icon was present.
+The embedded icon decoded at 16/20/24/32/40/48/64/128/256 px. Display and clean-checkout
+packaging checks passed with the icon embedded in the executable. Exact DWM frame colors
+and corner preferences are applied where supported; older Windows versions retain the
+native dark-frame fallback.
+
 Review fixes:
+- Clamp final pixel coordinates after rounding window size, including fractional DPI.
+- Keep fullscreen/maximized monitor moves synchronized with remembered normal placement.
+- Clear completed move intent even when a settings save makes no file changes, so a
+  later monitor disconnection retains the correct preferred display.
 - Fresh checkout builds on first launch; custom build output includes its resources.
 - Removed the development-only pending-binary replacement path.
 - Removed the headless hardware-mode cycling command and obsolete CSV GPU parser.

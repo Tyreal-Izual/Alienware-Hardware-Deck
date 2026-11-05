@@ -99,6 +99,7 @@ public static class SensorTests
         Check(operations.Length==1 && operations[0].Name=="GetCoreVoltageValue","The XTU wire contract must expose only the voltage getter");
         var operation=(OperationContractAttribute)Attribute.GetCustomAttribute(operations[0],typeof(OperationContractAttribute));
         Check(operation.Action=="http://tempuri.org/IXtuTuning/GetCoreVoltageValue","Voltage request must match the installed XTU contract");
-        Console.WriteLine(count+" sensor, configuration, voltage and mode contract checks passed.");return 0;
+        Console.WriteLine(count+" sensor, configuration, voltage and mode contract checks passed.");
+        WindowPreferencesTests.Run();return 0;
     }
 }

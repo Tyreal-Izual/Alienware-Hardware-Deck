@@ -16,6 +16,10 @@ foreach ($reference in @('PresentationFramework.dll','PresentationCore.dll','Win
     $arguments += '/reference:' + (Join-Path $wpf $reference)
 }
 $arguments += '/win32manifest:' + (Join-Path $PSScriptRoot 'app.manifest')
+$icon = Join-Path $PSScriptRoot 'assets\HardwareDeck.ico'
+if (-not (Test-Path -LiteralPath $icon)) { throw 'Missing application icon. Run scripts/Build-Icon.ps1.' }
+$arguments += '/win32icon:' + $icon
+$arguments += '/resource:' + $icon + ',HardwareDeck.AppIcon.ico'
 Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' -File | Sort-Object Name | ForEach-Object {
     $arguments += $_.FullName
 }

@@ -14,7 +14,6 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using Forms = System.Windows.Forms;
 
 namespace HardwareDeck
 {
@@ -22,6 +21,8 @@ namespace HardwareDeck
     public sealed class DeckWindow
     {
         readonly Window window;
+        readonly WindowAppearance appearance;
+        readonly WindowPlacementSession placement;
         readonly string root, preview;
         readonly bool stay;
         bool previewSaved;
@@ -30,10 +31,6 @@ namespace HardwareDeck
         DateTime lastUpdate = DateTime.MinValue;
         Snapshot latest;
         volatile int interval = 1000;
-        bool full;
-        WindowState previousState;
-        Rect previousBounds;
-        ResizeMode previousResizeMode;
         int samples;
         int requestedMode=-1;
         bool modeBusy;
@@ -61,15 +58,19 @@ namespace HardwareDeck
         }
         static string Display(double? value, string unit, string format) { return value.HasValue ? value.Value.ToString(format, CultureInfo.InvariantCulture) + unit : "—"; }
         void Text(string name, string value) { var block = Find<TextBlock>(name); block.Text = value; block.ToolTip = value; }
-        public DeckWindow(string root, string preview, bool stay)
+        public DeckWindow(string root, string preview, bool stay, string windowStatePath=null)
         {
             this.root = root; this.preview = preview; this.stay=stay;
             using (var reader = System.Xml.XmlReader.Create(System.IO.Path.Combine(root, "View.xaml")))
                 window = (Window)XamlReader.Load(reader);
+            appearance=new WindowAppearance(window);
+            placement=new WindowPlacementSession(window,string.IsNullOrEmpty(preview)?
+                (windowStatePath??WindowPreferencesFile.DefaultPath):null);
+            placement.Changed+=(s,e)=>UpdateWindowButtons();
             Find<Button>("AdminButton").Click += (s,e) => Elevate();
-            Find<Button>("ScreenButton").Click += (s,e) => NextScreen();
-            Find<Button>("PinButton").Click += (s,e) => { window.Topmost = !window.Topmost; Find<Button>("PinButton").Content = window.Topmost ? "Pin: on" : "Pin: off"; };
-            Find<Button>("FullButton").Click += (s,e) => ToggleFull();
+            Find<Button>("ScreenButton").Click += (s,e) => placement.NextDisplay();
+            Find<Button>("PinButton").Click += (s,e) => placement.ToggleTopmost();
+            Find<Button>("FullButton").Click += (s,e) => placement.ToggleFullscreen();
             Find<Button>("ModeApply").Click += (s,e) => {
                 var chosen=Find<ComboBox>("ModeSelect").SelectedItem as ThermalPreset;
                 if(chosen==null || modeBusy || latest==null || latest.ThermalMode==null || !latest.ThermalMode.CanChange)return;
@@ -83,8 +84,7 @@ namespace HardwareDeck
             };
             Find<ScrollViewer>("Viewport").SizeChanged += (s,e) => FitDashboard();
             Find<Grid>("Dashboard").LayoutUpdated += FitHistoryHeight;
-            window.SourceInitialized += (s,e) => FitWindow();
-            window.KeyDown += (s,e) => { if (e.Key == System.Windows.Input.Key.F11) ToggleFull(); else if (e.Key == System.Windows.Input.Key.Escape && full) ToggleFull(); };
+            window.KeyDown += (s,e) => { if (e.Key == System.Windows.Input.Key.F11) placement.ToggleFullscreen(); else if (e.Key == System.Windows.Input.Key.Escape && placement.IsFullscreen) placement.ToggleFullscreen(); };
             window.Closed += (s,e) => { cancellation.Cancel(); clock.Stop(); Find<Grid>("Dashboard").LayoutUpdated -= FitHistoryHeight; };
             Find<Canvas>("CpuChart").SizeChanged += (s,e) => DrawCharts();
             Find<Canvas>("GpuChart").SizeChanged += (s,e) => DrawCharts();
@@ -129,14 +129,11 @@ namespace HardwareDeck
             double height=Math.Max(panel.MinHeight,Math.Min(compactLayout==true?158:220,Math.Floor(available)));
             if(Math.Abs(panel.Height-height)>0.5)panel.Height=height;
         }
-        void FitWindow()
+        void UpdateWindowButtons()
         {
-            var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
-            var area = Forms.Screen.FromHandle(handle).WorkingArea;
-            var source = PresentationSource.FromVisual(window);
-            var scale = source == null ? Matrix.Identity : source.CompositionTarget.TransformToDevice;
-            window.Width = Math.Min(window.Width, area.Width / scale.M11 * 0.96);
-            window.Height = Math.Min(window.Height, area.Height / scale.M22 * 0.96);
+            Find<Button>("PinButton").Content=window.Topmost?"Pin: on":"Pin: off";
+            Find<Button>("FullButton").Content=placement.IsFullscreen?"Exit fullscreen":"Fullscreen";
+            appearance.Refresh();
         }
         void UpdateStatus()
         {
@@ -394,46 +391,10 @@ namespace HardwareDeck
         void Elevate()
         {
             try {
+                placement.SaveNow();
                 using(var launched=Process.Start(new ProcessStartInfo(typeof(Program).Assembly.Location){UseShellExecute=true,Verb="runas",WorkingDirectory=root})) { }
                 window.Close();
             }catch(System.ComponentModel.Win32Exception){Text("Footer","Administrator access was not granted. Basic metrics remain available.");}
-        }
-        void ToggleFull()
-        {
-            if(!full){
-                previousState=window.WindowState;
-                previousBounds=window.WindowState==WindowState.Normal?new Rect(window.Left,window.Top,window.Width,window.Height):window.RestoreBounds;
-                previousResizeMode=window.ResizeMode;
-                var handle=new System.Windows.Interop.WindowInteropHelper(window).Handle;
-                var bounds=Forms.Screen.FromHandle(handle).Bounds;
-                window.WindowState=WindowState.Normal;window.WindowStyle=WindowStyle.None;window.ResizeMode=ResizeMode.NoResize;
-                SetWindowPos(handle,IntPtr.Zero,bounds.Left,bounds.Top,bounds.Width,bounds.Height,0x0004);
-                full=true;
-            }
-            else {
-                window.WindowState=WindowState.Normal;window.WindowStyle=WindowStyle.SingleBorderWindow;window.ResizeMode=previousResizeMode;
-                window.Left=previousBounds.Left;window.Top=previousBounds.Top;window.Width=previousBounds.Width;window.Height=previousBounds.Height;
-                window.WindowState=previousState;full=false;
-            }
-            Find<Button>("FullButton").Content=full?"Exit fullscreen":"Fullscreen";
-        }
-        [System.Runtime.InteropServices.DllImport("user32.dll", SetLastError=true)]
-        static extern bool SetWindowPos(IntPtr handle,IntPtr after,int x,int y,int width,int height,uint flags);
-        void NextScreen()
-        {
-            var screens=Forms.Screen.AllScreens;
-            var helper=new System.Windows.Interop.WindowInteropHelper(window);
-            var current=Forms.Screen.FromHandle(helper.Handle);
-            int index=Array.FindIndex(screens,s=>s.DeviceName==current.DeviceName);
-            var bounds=screens[(index+1)%screens.Length].WorkingArea;
-            bool wasFull=full;bool wasMaximized=(full?previousState:window.WindowState)==WindowState.Maximized;if(wasFull)ToggleFull();
-            window.WindowState=WindowState.Normal;
-            int inset=Math.Max(12,Math.Min(bounds.Width,bounds.Height)/50);
-            SetWindowPos(helper.Handle,IntPtr.Zero,bounds.Left+inset,bounds.Top+inset,
-                bounds.Width-inset*2,bounds.Height-inset*2,0x0004);
-
-            if(wasMaximized)window.WindowState=WindowState.Maximized;
-            if(wasFull)ToggleFull();
         }
     }
     public static class Program

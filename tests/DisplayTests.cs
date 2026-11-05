@@ -89,7 +89,8 @@ public static class DisplayTests
         CultureInfo.DefaultThreadCurrentCulture = CultureInfo.GetCultureInfo("en-US");
         string root = args[0], output = args[1];
         Directory.CreateDirectory(output);
-        var deck = new DeckWindow(root, null, false);
+        var settingsPath=Path.Combine(output,"unshown-window-state.json");
+        var deck = new DeckWindow(root, null, false, settingsPath);
         var window = (Window)typeof(DeckWindow).GetField("window", Private).GetValue(deck);
         Check((int)typeof(DeckWindow).GetField("interval", Private).GetValue(deck) == 1000, "Default sampling must be one second");
         Check(((ComboBox)window.FindName("Interval")).SelectedIndex == 0, "Refresh selector must match sampling");
@@ -132,6 +133,7 @@ public static class DisplayTests
         Check(!((Button)window.FindName("ModeApply")).IsEnabled, "Disconnected control must remain disabled");
         Check(((ScrollViewer)window.Content).ScrollableHeight < 1, "Unavailable-sensor view must fit");
         window.Close();
+        Check(!File.Exists(settingsPath), "Offscreen rendering must not save or replace user window preferences");
         Console.WriteLine(checks + " display, scaling and refresh checks passed. Images use sample data.");
         return 0;
     }
