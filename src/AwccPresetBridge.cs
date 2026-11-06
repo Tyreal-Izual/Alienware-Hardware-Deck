@@ -45,8 +45,11 @@ namespace HardwareDeck
         internal void Apply(int preset,Action beforeInvoke)
         {
             if(!PresetPolicy.IsCooling(preset))throw new InvalidOperationException("Unsupported AWCC preset");
+            ApplyNamed(PresetPolicy.Name(preset),beforeInvoke);
+        }
+        void ApplyNamed(string name,Action beforeInvoke)
+        {
             EnsureFrontend();
-            string name=PresetPolicy.Name(preset);
             var timer=Stopwatch.StartNew();
             AutomationElement list=null;
             while(timer.ElapsedMilliseconds<40000){
@@ -91,6 +94,62 @@ namespace HardwareDeck
             try{((InvokePattern)invoke).Invoke();}
             finally{RestoreCallerFocus();}
             if(!hidden && !IsIconic(window))throw new InvalidOperationException("AWCC unexpectedly restored its window");
+        }
+        // OC02 is only exposed by AWCC's native Custom CPU editor. The private
+        // frontend avoids touching a user's unsaved settings or showing popups.
+        internal void ApplyOc02(Action requirePerformance,Action settlePerformance)
+        {
+            EnsureFrontend();
+            if(!hidden)throw new InvalidOperationException("Close AWCC before selecting OC02 so its CPU editor can run in the background");
+            AutomationElement root=null;
+            WaitForUi(delegate{
+                window=FindWindow(frontend.Id,desktop);
+                if(window==IntPtr.Zero)return false;
+                root=AutomationElement.FromHandle(window);
+                var menu=Find(root,AutomationElement.AutomationIdProperty,"PERFORMANCE");
+                if(menu==null)return false;
+                ((SelectionItemPattern)menu.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();return true;
+            },40000,"AWCC Performance page is unavailable");
+            AutomationElement toggle=null;ToggleState original=ToggleState.Indeterminate;
+            try{
+                WaitForUi(delegate{toggle=Find(root,AutomationElement.AutomationIdProperty,"_performanceThermalToggle");return toggle!=null;},10000,"AWCC performance view is unavailable");
+                var view=(TogglePattern)toggle.GetCurrentPattern(TogglePattern.Pattern);original=view.Current.ToggleState;
+                if(toggle.Current.Name=="PERFORMANCE")view.Toggle();
+                else if(toggle.Current.Name!="THERMAL")throw new InvalidOperationException("AWCC performance view changed");
+                ApplyNamed("Custom",requirePerformance);
+                AutomationElement cpu=null,advanced=null;
+                WaitForUi(delegate{
+                    cpu=root.FindFirst(TreeScope.Descendants,new AndCondition(new PropertyCondition(AutomationElement.ControlTypeProperty,ControlType.Group),new PropertyCondition(AutomationElement.NameProperty,"Cpu Overview")));
+                    advanced=cpu==null?null:Find(cpu,AutomationElement.AutomationIdProperty,"AdvancedViewButton");
+                    return advanced!=null && advanced.Current.IsEnabled;
+                },10000,"AWCC CPU editor is unavailable");
+                Invoke(advanced);settlePerformance();
+                AutomationElement combo=null;
+                WaitForUi(delegate{combo=Find(cpu,AutomationElement.NameProperty,"Custom Presets");return combo!=null && combo.Current.IsEnabled;},5000,"AWCC CPU preset selector is unavailable");
+                var expand=(ExpandCollapsePattern)combo.GetCurrentPattern(ExpandCollapsePattern.Pattern);expand.Expand();
+                AutomationElement choice=null;
+                WaitForUi(delegate{choice=Find(combo,AutomationElement.NameProperty,"OC2");return choice!=null && choice.Current.IsEnabled;},5000,"AWCC does not expose the OC2 preset");
+                ((SelectionItemPattern)choice.GetCurrentPattern(SelectionItemPattern.Pattern)).Select();
+                expand.Collapse();
+                AutomationElement save=null;
+                WaitForUi(delegate{save=Find(cpu,AutomationElement.AutomationIdProperty,"_saveButton");return save!=null && save.Current.Name=="SAVE";},5000,"AWCC did not accept the predefined OC2 selection");
+                requirePerformance();
+                // A previously saved OC2 may already be active after entering
+                // Custom; final hardware readback still determines success.
+                if(save.Current.IsEnabled)Invoke(save);
+            }finally{
+                try{if(toggle!=null && original!=ToggleState.Indeterminate){var p=(TogglePattern)toggle.GetCurrentPattern(TogglePattern.Pattern);if(p.Current.ToggleState!=original)p.Toggle();}}catch{}
+            }
+        }
+        static AutomationElement Find(AutomationElement root,AutomationProperty property,string value)
+        {return root.FindFirst(TreeScope.Descendants,new PropertyCondition(property,value));}
+        static void Invoke(AutomationElement element)
+        {ThrowIfStopping();((InvokePattern)element.GetCurrentPattern(InvokePattern.Pattern)).Invoke();}
+        static void WaitForUi(Func<bool> ready,int timeout,string failure)
+        {
+            var timer=Stopwatch.StartNew();
+            do{ThrowIfStopping();try{if(ready())return;}catch(ElementNotAvailableException){}Thread.Sleep(150);}while(timer.ElapsedMilliseconds<timeout);
+            throw new InvalidOperationException(failure);
         }
         void EnsureFrontend()
         {
@@ -212,6 +271,25 @@ namespace HardwareDeck
         public PresetState Read(){return PresetStateFactory.Create(cpu.Read(true),thermal.ReadMode());}
         public void ApplyAwcc(int preset){bridge.Apply(preset,delegate{if(preset==161 && thermal.ReadMode().CurrentId!=161)ApplyCooling(161);});}
         public void ApplyCooling(int preset){AwccPresetBridge.ThrowIfStopping();var r=thermal.ApplyMode(preset);if(!r.Success)throw new InvalidOperationException(r.Message);}
+        public void ApplyOc02()
+        {
+            Action requirePerformance=delegate{
+                AwccPresetBridge.ThrowIfStopping();
+                var state=Read();
+                if(!state.CpuReadable || state.Cooling!=161)throw new InvalidOperationException("OC02 requires fresh Performance cooling readback");
+            };
+            requirePerformance();
+            bridge.ApplyOc02(requirePerformance,delegate{
+                // Entering Custom also applies its saved thermal policy. Reassert
+                // and verify P before saving the explicitly requested CPU OC2.
+                ApplyCooling(161);int stable=0;
+                for(int i=0;i<20;i++){
+                    var state=Read();stable=state.Cooling==161 && state.CpuReadable && state.PowerVerified?stable+1:0;
+                    if(stable>=4)return;Pause();
+                }
+                throw new InvalidOperationException("Performance cooling did not settle before OC02");
+            });
+        }
         public void Pause(){Thread.Sleep(300);}
         public void Dispose(){bridge.Dispose();cpu.Dispose();thermal.Dispose();}
     }

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-06 — Independent OC02
+
+- Add an OC02 button beside Off and OC01. It is selectable only with Performance
+  cooling; the same guard is enforced again in the worker and before saving.
+- Keep main preset mappings unchanged: Quiet/Balanced use Off, Performance uses OC01.
+  OC02 is independent and is never enabled by a main preset or cooling-only request.
+- Apply OC02 through AWCC's original Custom CPU editor on a private desktop. Preserve
+  the display-view preference and require an existing user-owned AWCC frontend to be
+  closed before this operation. No direct XTU writes or unsigned RPC bypasses are used.
+- Extend CPU readback from 37 to 53 controls, checking both E-core target groups for
+  44x versus 45x and rejecting partial OC02 application.
+- Add policy, lifecycle, and 1080p layout regression coverage. All 395 automated
+  checks pass. The native OC02/OC01/Off switch matrix and Q/B rejection passed on
+  the audited R16, with the original state restored and no visible AWCC window
+  detected on the input desktop. See [VERIFICATION.md](VERIFICATION.md).
+
 ## 2026-11-06 — Network history and verified preset controls
 
 - Add matching download/upload history cards with current rates, recent peaks, automatic

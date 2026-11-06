@@ -30,7 +30,7 @@ public static class PresetLifecycleTests
         var values=CpuPresetReader.Controls.ToDictionary(id=>id,id=>57m);
         foreach(uint id in new uint[]{29,30,120,121})values[id]=oc?61:60;
         values[34]=0;values[88]=0;values[47]=253;values[48]=power;values[102]=oc?316:307;
-        for(uint id=1500;id<=1515;id++)values[id]=44;
+        for(uint id=1500;id<=1515;id++){values[id]=44;values[id+3000]=44;}
         return values.Select(p=>new XtuControlValue{Id=p.Key,ActiveValue=p.Value}).ToList();
     }
     static OemCpuProfile Profile(bool oc){return new OemCpuProfile{Ratio=oc?61:60,Ecore=44,Current=oc?316:307,Power=oc?253:180,ShortPower=253};}
@@ -59,7 +59,7 @@ public static class PresetLifecycleTests
         Check(!PresetWorker.RunBackground(()=>{throw new InvalidOperationException("Failed");},5000,()=>{}).Success,"Operation exceptions become failure results");
 
         var now=new DateTime(2026,11,6,12,0,0,DateTimeKind.Utc);var tuning=new Tuning();int opens=0;
-        using(var reader=new CpuPresetReader(()=>{opens++;return tuning;},()=>now,true,Profile(false),Profile(true))){
+        using(var reader=new CpuPresetReader(()=>{opens++;return tuning;},()=>now,true,Profile(false),Profile(true),new OemCpuProfile{Ratio=61,Ecore=45,Current=316,Power=253,ShortPower=253})){
             var first=reader.ReadForCooling(160);
             Check(first.Readable && first.Level==0 && first.PowerLimitWatts==180,"Read a verified stock CPU baseline");
             now=now.AddSeconds(1);
@@ -68,6 +68,10 @@ public static class PresetLifecycleTests
             var changed=reader.ReadForCooling(161);
             Check(changed.Level==1 && changed.PowerLimitWatts==253 && tuning.Refreshes==2,"A cooling change cannot reuse CPU values from the previous mode");
             Check(opens==1,"Successful reads reuse the connection");
+            foreach(var value in tuning.Values)if((value.Id>=1500 && value.Id<=1515)||(value.Id>=4500 && value.Id<=4515))value.ActiveValue=45;
+            Check(reader.Read(true).Level==2,"CPU readback classifies all OC02 E-core controls");
+            tuning.Values.Single(v=>v.Id==4500).ActiveValue=44;
+            Check(reader.Read(true).Level==null,"Partial OC02 application is reported as unknown");
             tuning.Fail=true;now=now.AddSeconds(4);
             Check(!reader.ReadForCooling(161).Readable,"Read failure never keeps a verified CPU claim");
             now=now.AddSeconds(1);int calls=tuning.Refreshes;
@@ -83,7 +87,7 @@ public static class PresetLifecycleTests
             reader.Dispose();calls=opens;
             Check(!reader.Read(true).Readable && opens==calls,"A disposed reader never reconnects");
         }
-        using(var reader=new CpuPresetReader(()=>{throw new Exception("Must not connect");},()=>now,false,Profile(false),Profile(true)))
+        using(var reader=new CpuPresetReader(()=>{throw new Exception("Must not connect");},()=>now,false,Profile(false),Profile(true),new OemCpuProfile{Ratio=61,Ecore=45,Current=316,Power=253,ShortPower=253}))
             Check(!reader.Read().Readable,"Standard permissions never open a tuning connection");
         Console.WriteLine("Preset lifecycle/readback checks passed: "+checks);
     }

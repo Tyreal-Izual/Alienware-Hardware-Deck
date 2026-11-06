@@ -260,6 +260,7 @@
             <TextBlock Text="OC" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="18,0,8,0"/>
             <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOff" Content="Off" Style="{StaticResource ModeButton}" IsEnabled="False"/>
             <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOC01" Content="OC01" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+            <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOC02" Content="OC02" Style="{StaticResource ModeButton}" IsEnabled="False"/>
           </StackPanel>
           <UniformGrid x:Name="FanPanel" Rows="1"/>
           <UniformGrid x:Name="TemperaturePanel" Rows="1" Margin="0,4,0,0"/>

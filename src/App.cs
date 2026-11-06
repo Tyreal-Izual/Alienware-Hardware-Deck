@@ -80,6 +80,7 @@ namespace HardwareDeck
             }
             Find<Button>("CpuOff").Click+=(s,e)=>RequestPreset(new PresetRequest{Kind="cpu",Value=0});
             Find<Button>("CpuOC01").Click+=(s,e)=>RequestPreset(new PresetRequest{Kind="cpu",Value=1});
+            Find<Button>("CpuOC02").Click+=(s,e)=>RequestPreset(new PresetRequest{Kind="cpu",Value=2});
             Find<ComboBox>("Interval").SelectionChanged += (s,e) => {
                 interval = new[] {1000,2000,5000}[Math.Max(0, Math.Min(2, Find<ComboBox>("Interval").SelectedIndex))];
                 UpdateStatus();
@@ -159,7 +160,7 @@ namespace HardwareDeck
             var state=latest==null?null:latest.Preset;
             bool fresh=PresetFresh();
             bool enabled=fresh && state.CanChange && mode!=null && mode.CanChange && !modeBusy;
-            bool conflict=fresh && state.Cpu==1 && state.Cooling!=161;
+            bool conflict=fresh && state.Cpu>0 && state.Cooling!=161;
             Text("ModeCurrent",!fresh || !state.CpuReadable || !state.PowerVerified?"Unverified":conflict?"Conflict":state.LinkedPreset.HasValue?"Linked":"Independent");
             Find<TextBlock>("ModeCurrent").ToolTip=state==null?"Waiting for CPU and cooling readback":state.Detail;
             foreach(int id in new[]{163,160,161}){
@@ -168,12 +169,14 @@ namespace HardwareDeck
                 SetPresetButton("Mode"+name,name,enabled && supported,fresh && state.LinkedPreset==id,"preset",id,
                     "Apply the full AWCC "+name+" preset");
                 SetPresetButton("Cooling"+name,name.Substring(0,1),enabled && supported && (id!=161 || state.Cpu.HasValue),fresh && state.Cooling==id,"cooling",id,
-                    name+" cooling"+(id==161?" · Preserve CPU Off / OC01":" · CPU OC switches Off first"));
+                    name+" cooling"+(id==161?" · Preserve CPU Off / OC01 / OC02":" · CPU OC switches Off first"));
             }
             SetPresetButton("CpuOff","Off",enabled && state.Cooling.HasValue && PresetPolicy.IsCooling(state.Cooling.Value),fresh && state.CpuReadable && state.Cpu==0,"cpu",0,"OC Off · Retain cooling and its BIOS power policy");
             SetPresetButton("CpuOC01","OC01",enabled && state.Cooling==161,fresh && state.CpuReadable && state.Cpu==1,"cpu",1,
                 "CPU OC01 requires Performance cooling");
-            if(!modeBusy)Text("ModeNotice",state!=null && !state.CanChange?state.Detail:!fresh?"Waiting for fresh CPU and cooling readback":conflict?"OC01 requires Performance cooling · Select a main preset":
+            SetPresetButton("CpuOC02","OC02",enabled && state.Cooling==161,fresh && state.CpuReadable && state.Cpu==2,"cpu",2,
+                "CPU OC02 · Manual only · Requires Performance cooling");
+            if(!modeBusy)Text("ModeNotice",state!=null && !state.CanChange?state.Detail:!fresh?"Waiting for fresh CPU and cooling readback":conflict?"CPU OC requires Performance cooling · Select a main preset":
                 !state.CanChange || !state.Cpu.HasValue || !state.PowerVerified?state.Detail:presetNotice??"OC and cooling verified");
         }
         void SetPresetButton(string control,string label,bool enabled,bool current,string kind,int value,string hint)

@@ -67,9 +67,10 @@ from the user-data folder above; the next launch uses visible defaults.
 | Fan association | `GetFanSensors` subcommand 2; association codes do not identify physical fan positions |
 
 **Quiet, Balanced, and Performance are linked CPU/cooling presets.** The compact
-Cooling Q/B/P and OC Off/OC01 controls share the same transaction path. Quiet and
-Balanced cooling force CPU Off; OC01 is unavailable unless Performance cooling is
-selected. Performance cooling with CPU Off is an Independent combination. Only
+Cooling Q/B/P and OC Off/OC01/OC02 controls share the same transaction path. Quiet and
+Balanced cooling force CPU Off; OC01 and OC02 are unavailable unless Performance cooling is
+selected. OC02 is manual-only: main Performance always applies OC01, while Quiet and
+Balanced apply Off. Performance cooling with CPU Off or OC02 is an Independent combination. Only
 verified combinations receive a current highlight; requests lock all controls while
 application and readback are pending.
 
@@ -77,8 +78,9 @@ The implementation delegates full presets to AWCC's own controls and
 uses an isolated Windows desktop for a frontend cold start. Existing AWCC is reused
 and minimized. CPU state is checked through XTU active values and cooling through
 firmware WMI readback. Missing, stale or inconsistent data blocks verification.
-This backend targets the audited R16/i9-14900KF and AWCC 6.14.105.0; raw voltage,
-custom fan curves and OC02 are not exposed. AWCC automation may override manual
+This backend targets the audited R16/i9-14900KF and AWCC 6.14.105.0; raw voltage
+and custom fan curves are not exposed. OC02 uses AWCC's native Custom CPU editor;
+close an existing AWCC frontend before selecting it so the editor can run privately. AWCC automation may override manual
 component combinations.
 
 The full live switch matrix and OC interlock passed on the audited machine. Cooling

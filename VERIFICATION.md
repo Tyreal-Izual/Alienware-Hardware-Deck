@@ -1,5 +1,38 @@
 # Validation scope
 
+## Independent OC02 follow-up (2026-11-06)
+
+- 395 automated checks passed: 51 sensor/configuration/voltage, 32 window state,
+  27 network, 49 preset policy/verification, 26 lifecycle/readback, 181 display,
+  and 29 packaging/worker-protocol checks.
+- New cases cover Q/B rejection of OC02, unchanged main preset mappings, preserving
+  OC02 with cooling P without reapplying it, OC02/OC01 highlights, pending states,
+  and mixed E-core target rejection. All 53 critical CPU controls are required.
+- The real worker passed OC01 -> OC02 -> OC01, repeated OC02, OC02 -> Off,
+  Off -> OC02, and OC02 -> Quiet/Off. Quiet/Balanced rejected OC02 without changing
+  their verified Off state; main Performance still selected OC01.
+- The run restored its original Performance/OC01 state with 253/253 W PL1/PL2.
+  A 100 ms input-desktop window monitor saw no visible AWCC process. Temporary
+  frontends were cleaned up. Evidence: `.local/oc02/live-result.json`.
+- The local AWCC log recorded `ActivateCpuProfile(Overclock 02)`, E-core
+  count limits of 45, and `BiosOcKnobs.ApplyProfile(2) -> rebootRequired=False`.
+  This was the original AWCC workflow, not a direct BIOS-only or XTU write.
+- 1080p fixture rendering still fits fullscreen at 100% and 125%, including the new
+  button; 150% keeps the lower content accessible by scrolling. The 125% preview
+  was visually inspected. This validates application/readback, not load stability.
+
+The tested build was installed locally and reopened with sensors enabled. The
+read-only deployed UI check confirmed P/OC01 as Current, OC02 as Available,
+and "OC and cooling verified". Previous artifacts are in `.local/before-oc02`.
+
+Final publication review (2026-11-06): rebuilt from source and reran all 395 checks,
+including clean-checkout packaging and the 1080p fixture layouts. Reviewed the
+OC02 transaction, private-frontend lifecycle, readback classification, and the saved
+live acceptance evidence. No blocking defects were found. This review did not
+repeat hardware writes or change the running dashboard.
+
+## Earlier validation
+
 The Windows CI builds the application, runs sensor/configuration/mode contract checks,
 tests a clean source checkout without an existing executable, and renders the real WPF
 view with fixture data. Display tests check 1920 x 1080 at 100%, 125%, and 150% scaling,
@@ -118,15 +151,17 @@ Reviewed linked-control acceptance (2026-11-06):
   changes. These tests do not change hardware modes. The existing live matrix remains
   the hardware evidence; failure-path fixes were validated separately.
 - See [PRESET-CONTROLS.md](PRESET-CONTROLS.md) for the compatibility and verification
-  scope. These checks do not establish stability under load or support for OC02.
+  scope. These earlier checks did not establish stability under load or OC02 support;
+  the OC02 follow-up above adds functional application/readback coverage.
 
 Limits:
 - Local-only profile audit (2026-11-06): compared all 46 stored XTU entries in each
   of Off/OC01/OC02 and 142 unique control targets in each recorded Off/OC01 proposal.
   Off/OC01 differed in six submitted control values. OC02 adds 32 E-core target
-  differences versus OC01 and two stored memory fields; it was not activated.
-  No exact OC02 activation entry was found in the 209 existing overclocking log
-  files. State-dependent call order, unchanged-profile skipping, and memory/GPU
+  differences versus OC01 and two stored memory fields. At the time of that
+  read-only audit it had not been activated; none of the 209 then-existing
+  overclocking log files contained an exact OC02 activation entry. The later
+  activation and its results are recorded in the OC02 follow-up above. State-dependent call order, unchanged-profile skipping, and memory/GPU
   capability guards were established from local code. See
   [AWCC-LOCAL-PROFILES.md](AWCC-LOCAL-PROFILES.md) for the evidence and limits.
 - Initial AWCC full-preset research (2026-11-06) established the installed UI/service call path

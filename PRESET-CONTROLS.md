@@ -8,26 +8,33 @@ Performance/OC01, Performance cooling with OC Off, both directions of independen
 OC switching, and rejection of OC01 under Quiet and Balanced. It restored the
 original Performance/OC01 state, with PL1/PL2 both reading 253 W.
 
-The reviewed automated run passed 368 checks: 51 sensor/configuration/voltage, 32 window
-state, 27 network, 35 preset policy/verification, 24 lifecycle/readback,
-170 display, and 29 packaging/worker-protocol checks.
+The OC02 follow-up also passed: OC01 -> OC02 -> OC01, repeated OC02, OC02 -> Off,
+Off -> OC02, OC02 -> Quiet/Off, OC02 rejection under Quiet/Balanced, and the main
+Performance mapping back to OC01. The run restored the original P/OC01 state and
+observed no visible AWCC process on the input desktop (100 ms sampling). Native
+AWCC logs corroborated Overclock 02 activation and BIOS profile index 2 without a
+reboot request. Evidence: `.local/oc02/live-result.json`.
+
+The reviewed automated run passed 395 checks: 51 sensor/configuration/voltage, 32 window
+state, 27 network, 49 preset policy/verification, 26 lifecycle/readback,
+181 display, and 29 packaging/worker-protocol checks.
 The 1080p fullscreen layout fits without scrolling at 100% and 125% scaling.
 
 CPU readback uses `GetAllControls().ActiveValue` after the inspected
 `RefreshActiveValuesFromHardwareAccess` operation. This refresh updates the service's
 read cache; it does not propose/apply tuning changes. The earlier scalar getter that
-returned zeros is not used. Live data validates 37 required control values.
+returned zeros is not used. Live data validates 53 required control values.
 
 Local evidence: `.local/awcc-sync/linked-presets-live.json`,
 `cooling-policy-live.json`, and `cold-start-result.json`.
 
-The validated executable and view were deployed to the project root. The previous
-executable, matching view/config, and sensor labels are backed up in
-`.local/before-linked-presets`. The deployed window was smoke-checked in standard
-permission mode after the administrator launch was canceled: live basic metrics
-and the new controls rendered correctly, while privileged actions remained disabled
-with the Enable sensors instruction. Elevating through that button enables the
-already-validated backend.
+The OC02 executable and view were deployed to the project root. The previous build
+and matching view/config are backed up in `.local/before-oc02`. The dashboard was
+reopened with administrator access and its saved window settings. A read-only UI
+check confirmed live data, P/OC01 current highlights, and an available, visible OC02
+button with no pending request. The initial standard-permission UI probe could only
+see the elevated window's title bar; the matching-permission probe succeeded.
+Evidence: `.local/oc02/dashboard-smoke-admin.txt`.
 
 ## Controls
 
@@ -37,15 +44,17 @@ already-validated backend.
 | Main Balanced | Balanced | OEM Off |
 | Main Performance | Performance | OEM OC01 |
 | Cooling Q / B | Quiet / Balanced | Force OEM Off |
-| Cooling P | Performance | Retain verified Off / OC01 |
+| Cooling P | Performance | Retain verified Off / OC01 / OC02 |
 | OC Off | Retain selected standard cooling | OEM Off |
 | OC01 | Requires Performance cooling already selected | OEM OC01 |
+| OC02 | Requires Performance cooling already selected; manual only | OEM OC02 |
 
-Only four combinations are permitted: Quiet/Off, Balanced/Off, Performance/Off and
-Performance/OC01. OC02 is not exposed. Quiet/Balanced cooling rejects OC01 both in
+Five combinations are permitted: Quiet/Off, Balanced/Off, Performance/Off,
+Performance/OC01 and Performance/OC02. Main presets never choose OC02; main
+Performance always returns to OC01. Quiet/Balanced cooling rejects both OC levels in
 the UI and in the worker policy. The linked main preset is highlighted only when
 the observed CPU and cooling combination matches; Performance cooling with CPU Off
-is shown as Independent. Pending requests lock every control, and duplicate requests
+or OC02 is shown as Independent. Pending requests lock every control, and duplicate requests
 for an already verified combination perform no write.
 
 The component controls share the same policy, transaction, verification and result
@@ -69,6 +78,14 @@ It must expose its Dashboard/Performance preset controls. Other pages, unavailab
 controls, dialogs or unsupported versions fail instead of sending blind mouse/key
 input or dismissing prompts. When needed, keyboard focus is returned only to the
 requesting HardwareDeck window, after checking its owning process.
+
+OC02 uses AWCC's native Custom CPU editor on the private desktop. Close an existing
+AWCC frontend before selecting OC02; the worker will not navigate or save over a
+user-owned editor. Entering Custom can apply its saved thermal policy, so the worker
+reestablishes and verifies Performance cooling before selecting and saving OC2. It
+checks P again immediately before SAVE, then verifies the actual CPU and cooling.
+AWCC stores this as its Custom CPU choice. Main preset clicks leave Custom and
+apply the normal Off/OC01 mapping. The original display-view preference is restored.
 
 For Performance cooling with OC Off, AWCC Balanced establishes the stock OC settings first, then
 the existing allowlisted thermal setter selects Performance cooling after OC
@@ -101,11 +118,11 @@ manual cooling choice. HardwareDeck displays the actual combined readback.
 ## Verification
 
 - CPU/OC: a batched XTU read includes favored/active P-core ratios, all E-core
-  ratios, IccMax, voltage mode and voltage offset. The OC fingerprint must match
-  the local OEM Off/OC01 definition. Missing IDs, invalid/zero-filled responses,
+  individual ratios and all 16 active E-core count limits, IccMax, voltage mode and voltage offset. The OC fingerprint must match
+  the local OEM Off/OC01/OC02 definition. Missing IDs, invalid/zero-filled responses,
   custom or mismatching values in those controls never count as a verified OEM OC preset.
 - Cooling: read the actual firmware thermal mode through WMI and verify XTU PL1/PL2
-  against the measured policy above. Together, these checks cover 37 control values.
+  against the measured policy above. Together, these checks cover 53 control values.
 - Completion: require four consecutive matching reads after the request. UI selection
   alone and requested settings never determine success. A fresh worker result cannot
   be overwritten by an older cached sensor snapshot.

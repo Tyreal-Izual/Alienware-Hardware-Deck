@@ -1,5 +1,13 @@
 # Local AWCC modes and OEM OC profiles
 
+> Follow-up, 2026-11-06: OC02 has now been activated and verified through the original
+> AWCC Custom CPU editor. The live worker confirmed both E-core target groups at 45,
+> P-core/voltage/current targets, Performance cooling, and 253/253 W power limits.
+> AWCC logged Overclock 02 activation and BIOS profile index 2 with no reboot required.
+> Main preset mappings remain unchanged. See [preset controls](PRESET-CONTROLS.md)
+> and [validation](VERIFICATION.md). The read-only audit below describes the evidence
+> available before this separate live test; its "not activated" statements are historical.
+
 Inspected on 2026-11-06 using only the installed AWCC files, WMI metadata, and existing
 local service logs. Target: Alienware Aurora R16 / Intel Core i9-14900KF / RTX 4090,
 AWCC 6.14.105.0. This audit made no profile changes and did not activate OC02.

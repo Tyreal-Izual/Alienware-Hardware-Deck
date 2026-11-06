@@ -67,7 +67,7 @@ through the worker; the acceptance report records the exact scope.
 
 ## Readback and independent cooling
 
-The verifier reads 37 critical XTU active values after refreshing the hardware read
+The verifier reads 53 critical XTU active values after refreshing the hardware read
 cache, plus the WMI thermal mode. OC identity uses ratios, IccMax, voltage mode and
 offset. BIOS cooling power is checked separately: Quiet/Balanced/Performance use
 170/180/253 W PL1, respectively, and 253 W PL2 on the audited machine.
@@ -83,8 +83,19 @@ AWCC automation can override independent combinations; the dashboard follows rea
 
 The GPU tuner returns success without tuning when its capability flag is false,
 as observed for this RTX 4090. That does not prove a GPU clock increase. Memory OC
-is also unavailable in the inspected runtime. OC02 exists in OEM data but is not
-exposed or part of live acceptance.
+is also unavailable in the inspected runtime. OC02 is exposed as a manual CPU choice
+through AWCC's native Custom CPU editor. Main presets never choose OC02.
+
+For OC02, the worker requires Performance cooling before entering Custom, opens the
+CPU Advanced View, selects OC2, and invokes SAVE. It reestablishes and verifies
+Performance cooling after Custom applies its saved thermal policy, then checks P
+again immediately before saving. This path requires a private frontend: an existing
+user-owned AWCC window is left untouched and the request asks the user to close it.
+The display-only Performance/Thermal preference is restored after the operation.
+AWCC retains the selected CPU Custom preset; switching a main preset leaves Custom
+and applies that main preset's original Off/OC01 mapping. The XTU reader checks both
+the 16 individual E-core ratios and 16 active-count limits to distinguish OC01 (44)
+from OC02 (45). Partial application never verifies as either profile.
 
 ## Compatibility and artifacts
 

@@ -41,6 +41,9 @@ namespace HardwareDeck
         {
             var cpu=(Dictionary<string,object>)profile["cpu"];
             var controls=((object[])profile["xtu"]).Cast<Dictionary<string,object>>().ToDictionary(x=>Convert.ToInt32(x["id"]),x=>Convert.ToDecimal(x["value"],CultureInfo.InvariantCulture));
+            decimal ecore=controls[1500];
+            if(Enumerable.Range(1500,16).Concat(Enumerable.Range(4500,16)).Any(id=>!controls.ContainsKey(id) || controls[id]!=ecore))
+                throw new InvalidOperationException("OEM E-core profile layout changed");
             return new OemCpuProfile{Ratio=Convert.ToDecimal(cpu["frequency"],CultureInfo.InvariantCulture)*10,
                 Power=controls[48],ShortPower=controls[47],Current=controls[102],Ecore=controls[1500]};
         }
@@ -49,7 +52,7 @@ namespace HardwareDeck
             // BIOS cooling profiles own the live PL1 value. OC fingerprints use
             // clocks, current and voltage; power is checked against cooling below.
             if(values[29]!=Ratio || values[30]!=Ratio || values[102]!=Current || values[34]!=0 || values[88]!=0)return false;
-            for(uint id=1500;id<=1515;id++)if(values[id]!=Ecore)return false;
+            for(uint id=1500;id<=1515;id++)if(values[id]!=Ecore || values[id+3000]!=Ecore)return false;
             // The captured R16/14900KF OEM profile uses two favored P cores; read
             // all eight instead of assuming the favored core numbers are constant.
             var cores=Enumerable.Range(116,8).Select(id=>values[(uint)id]).ToArray();
@@ -61,10 +64,10 @@ namespace HardwareDeck
     {
         internal static readonly string AwccBase=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles),@"Alienware\Alienware Command Center\Subsystems\Performance\SubAgent\SCSubAgent");
         internal static readonly uint[] Controls=new uint[]{29,30,31,32,34,42,43,47,48,88,96,97,102}
-            .Concat(Enumerable.Range(116,8).Select(x=>(uint)x)).Concat(Enumerable.Range(1500,16).Select(x=>(uint)x)).ToArray();
+            .Concat(Enumerable.Range(116,8).Select(x=>(uint)x)).Concat(Enumerable.Range(1500,16).Select(x=>(uint)x)).Concat(Enumerable.Range(4500,16).Select(x=>(uint)x)).ToArray();
         ChannelFactory<IXtuPresetReadOnly> factory;
         IXtuPresetReadOnly channel;
-        OemCpuProfile off,on;
+        OemCpuProfile off,on,oc2;
         CpuPresetReading last;
         readonly Func<IXtuPresetReadOnly> open;
         readonly Func<DateTime> utcNow;
@@ -76,8 +79,8 @@ namespace HardwareDeck
         int observedRevision=-1;
         internal static void InvalidateAll(){Interlocked.Increment(ref revision);}
         public CpuPresetReader(){open=Open;utcNow=()=>DateTime.UtcNow;administrator=Collector.IsAdmin;}
-        internal CpuPresetReader(Func<IXtuPresetReadOnly> open,Func<DateTime> utcNow,bool administrator,OemCpuProfile off,OemCpuProfile on)
-        {this.open=open;this.utcNow=utcNow;this.administrator=administrator;this.off=off;this.on=on;}
+        internal CpuPresetReader(Func<IXtuPresetReadOnly> open,Func<DateTime> utcNow,bool administrator,OemCpuProfile off,OemCpuProfile on,OemCpuProfile oc2)
+        {this.open=open;this.utcNow=utcNow;this.administrator=administrator;this.off=off;this.on=on;this.oc2=oc2;}
         IXtuPresetReadOnly Open()
         {
             var timeout=TimeSpan.FromMilliseconds(650);
@@ -119,9 +122,9 @@ namespace HardwareDeck
                 if(!ValidActiveValues(values))throw new InvalidOperationException("XTU returned unavailable active settings");
                 result.PowerLimitWatts=values[48];result.ShortPowerLimitWatts=values[47];
                 result.Readable=true;
-                result.Level=off.Matches(values)?(int?)0:on.Matches(values)?(int?)1:null;
-                result.Detail=result.Level.HasValue?"XTU readback: P/E-core ratios, IccMax and voltage mode/offset match OEM "+(result.Level==0?"Off":"OC01"):
-                    "CPU targets do not match OEM Off or OC01; select a main preset to reset them";
+                result.Level=off.Matches(values)?(int?)0:on.Matches(values)?(int?)1:oc2.Matches(values)?(int?)2:null;
+                result.Detail=result.Level.HasValue?"XTU readback: P/E-core ratios, IccMax and voltage mode/offset match OEM "+(result.Level==0?"Off":result.Level==1?"OC01":"OC02"):
+                    "CPU targets do not match OEM Off, OC01 or OC02; select a main preset to reset them";
                 nextRead=utcNow().AddSeconds(3);
             }catch(Exception error){result.Readable=false;result.Level=null;result.Detail="CPU verification unavailable: "+error.Message;Release();nextRead=utcNow().AddSeconds(10);}
             last=result;return result;
@@ -134,9 +137,10 @@ namespace HardwareDeck
             var profiles=((object[])data["predefined_profiles"]).Cast<Dictionary<string,object>>().ToArray();
             var stock=OemCpuProfile.Parse(profiles.Single(x=>Convert.ToString(x["name"])=="Off"));
             var oc=OemCpuProfile.Parse(profiles.Single(x=>Convert.ToString(x["name"])=="Overclock 01"));
-            if(stock.Ratio!=60 || oc.Ratio!=61 || stock.Ecore!=44 || oc.Ecore!=44 || stock.Power!=180 || oc.Power!=253 || stock.ShortPower!=253 || oc.ShortPower!=253)
+            var ocTwo=OemCpuProfile.Parse(profiles.Single(x=>Convert.ToString(x["name"])=="Overclock 02"));
+            if(stock.Ratio!=60 || oc.Ratio!=61 || stock.Ecore!=44 || oc.Ecore!=44 || stock.Power!=180 || oc.Power!=253 || stock.ShortPower!=253 || oc.ShortPower!=253 || ocTwo.Ratio!=61 || ocTwo.Ecore!=45 || ocTwo.Power!=253 || ocTwo.ShortPower!=253 || stock.Current!=307 || oc.Current!=316 || ocTwo.Current!=316)
                 throw new InvalidOperationException("OEM profile layout changed; verification needs review");
-            off=stock;on=oc;
+            off=stock;on=oc;oc2=ocTwo;
         }
         internal static bool ValidActiveValues(IDictionary<uint,decimal> values)
         {

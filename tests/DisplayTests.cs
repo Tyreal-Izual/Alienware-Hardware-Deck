@@ -64,13 +64,15 @@ public static class DisplayTests
     static void TestModeButtons(DeckWindow deck,Window window)
     {
         var quiet=(Button)window.FindName("ModeQuiet");var balanced=(Button)window.FindName("ModeBalanced");var performance=(Button)window.FindName("ModePerformance");
-        var cpuOn=(Button)window.FindName("CpuOC01");var cpuOff=(Button)window.FindName("CpuOff");
+        var cpuTwo=(Button)window.FindName("CpuOC02");var cpuOn=(Button)window.FindName("CpuOC01");var cpuOff=(Button)window.FindName("CpuOff");
         var fanP=(Button)window.FindName("CoolingPerformance");
         var buttons=new[]{quiet,balanced,performance};
         var request=typeof(DeckWindow).GetField("pendingRequest",Private);
         var sample=Fixture();Call(deck,"Update",sample);
         Check((string)balanced.Tag=="Current" && quiet.Tag==null && performance.Tag==null,"Only a verified linked combination highlights a main preset");
-        Check(buttons.All(b=>b.IsEnabled) && !cpuOn.IsEnabled,"Balanced permits switching but forbids OC");
+        Check(buttons.All(b=>b.IsEnabled) && !cpuOn.IsEnabled && !cpuTwo.IsEnabled,"Balanced permits switching but forbids OC");
+        cpuTwo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(request.GetValue(deck)==null,"Programmatic OC02 clicks are rejected below P");
         cpuOn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(request.GetValue(deck)==null,"Backend-facing UI guard rejects a programmatic OC click under Balanced cooling");
         balanced.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -87,15 +89,23 @@ public static class DisplayTests
         var independent=new PresetState{Cooling=161,Cpu=0,CpuReadable=true,PowerVerified=true,CanChange=true,CapturedAt=DateTime.UtcNow.ToString("o")};
         Call(deck,"CompletePreset",new PresetResult{Success=true,Message="Verified independent cooling",Actual=independent});
         Check(buttons.All(b=>b.Tag==null) && (string)fanP.Tag=="Current" && (string)cpuOff.Tag=="Current","Independent combination only highlights its component states");
-        Check(cpuOn.IsEnabled,"OC becomes available with verified Performance cooling");
+        Check(cpuOn.IsEnabled && cpuTwo.IsEnabled,"OC becomes available with verified Performance cooling");
         cpuOn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(((PresetRequest)request.GetValue(deck)).Kind=="cpu","CPU control shares serialization and completion handling");
         Call(deck,"CompletePreset",new PresetResult{Success=true,Message="Verified",Actual=new PresetState{Cooling=161,Cpu=1,CpuReadable=true,PowerVerified=true,CanChange=true,CapturedAt=DateTime.UtcNow.ToString("o")}});
         Check((string)performance.Tag=="Current" && (string)cpuOn.Tag=="Current","A verified OC01/Performance combination is linked");
+        cpuTwo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(((PresetRequest)request.GetValue(deck)).Kind=="cpu" && ((PresetRequest)request.GetValue(deck)).Value==2,"OC02 queues an independent CPU request");
+        Check(!cpuTwo.IsEnabled && (string)cpuTwo.Tag=="Pending","OC02 locks and shows pending until readback completes");
+        Call(deck,"CompletePreset",new PresetResult{Success=true,Message="Verified OC02",Actual=new PresetState{Cooling=161,Cpu=2,CpuReadable=true,PowerVerified=true,CanChange=true,CapturedAt=DateTime.UtcNow.ToString("o")}});
+        Check((string)cpuTwo.Tag=="Current" && cpuOn.Tag==null && performance.Tag==null,"OC02 highlights independently, never as linked Performance");
+        performance.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(((PresetRequest)request.GetValue(deck)).Kind=="preset" && ((PresetRequest)request.GetValue(deck)).Value==161,"Main Performance remains a linked preset request after OC02");
+        Call(deck,"CompletePreset",new PresetResult{Success=true,Message="Verified",Actual=new PresetState{Cooling=161,Cpu=1,CpuReadable=true,PowerVerified=true,CanChange=true,CapturedAt=DateTime.UtcNow.ToString("o")}});
         sample=Fixture();sample.Preset.PowerVerified=false;Call(deck,"Update",sample);
         Check(buttons.All(b=>b.Tag==null) && ((TextBlock)window.FindName("ModeCurrent")).Text=="Unverified","Wrong cooling power limits must clear linked-preset claims");
         sample=Fixture();sample.Preset.Cooling=163;sample.ThermalMode.CurrentId=163;Call(deck,"Update",sample);
-        Check((string)quiet.Tag=="Current" && !cpuOn.IsEnabled,"Quiet also rejects OC");
+        Check((string)quiet.Tag=="Current" && !cpuOn.IsEnabled && !cpuTwo.IsEnabled,"Quiet also rejects OC");
         sample=Fixture();sample.Preset.CpuReadable=false;sample.Preset.CanChange=false;Call(deck,"Update",sample);
         Check(buttons.All(b=>!b.IsEnabled && b.Tag==null) && !fanP.IsEnabled,"Unverified CPU state disables writes");
         sample=Fixture();Call(deck,"Update",sample);
@@ -124,6 +134,9 @@ public static class DisplayTests
             measured.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Check(text.ActualWidth + 1 >= measured.DesiredSize.Width, name + " clips " + id);
         }
+        var ocTwo=(Button)window.FindName("CpuOC02");
+        var edge=ocTwo.TransformToAncestor(surface).Transform(new Point(ocTwo.ActualWidth,0));
+        Check(edge.X<=surface.ActualWidth && ocTwo.ActualWidth>=62,name+" OC02 must fit the control row");
         var chart = (Canvas)window.FindName("GpuChart");
         Check(chart.ActualHeight >= 90, name + " chart is too short");
         Check(((Grid)window.FindName("HistoryPanel")).ActualHeight <= 220, name + " charts must remain compact in fullscreen");
