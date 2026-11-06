@@ -17,10 +17,12 @@
       <Setter Property="FontWeight" Value="SemiBold"/><Setter Property="FontSize" Value="10"/>
     </Style>
     <Style x:Key="Metric" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="48"/><Setter Property="FontWeight" Value="Light"/>
+      <Setter Property="FontSize" Value="48"/><Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Foreground" Value="#F4F8FC"/>
     </Style>
     <Style x:Key="Detail" TargetType="TextBlock">
       <Setter Property="FontSize" Value="18"/><Setter Property="Margin" Value="0,3,8,0"/>
+      <Setter Property="FontWeight" Value="Bold"/><Setter Property="Foreground" Value="#F4F8FC"/>
       <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
     </Style>
     <Style TargetType="Button">
@@ -51,6 +53,38 @@
         <ControlTemplate.Triggers>
           <Trigger Property="IsHighlighted" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="#2A4051"/></Trigger>
           <Trigger Property="IsSelected" Value="True"><Setter TargetName="ItemSurface" Property="Background" Value="#23483F"/></Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
+    <Style x:Key="ModeButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+      <Setter Property="Width" Value="118"/><Setter Property="Height" Value="34"/>
+      <Setter Property="FontSize" Value="12"/><Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Padding" Value="8,5"/><Setter Property="ToolTipService.ShowOnDisabled" Value="True"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button">
+        <Border x:Name="ModeSurface" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock x:Name="CurrentMark" Text="✓" Visibility="Collapsed" Margin="0,0,6,0"/>
+            <ContentPresenter VerticalAlignment="Center"/>
+          </StackPanel>
+        </Border>
+        <ControlTemplate.Triggers>
+          <Trigger Property="IsMouseOver" Value="True"><Setter Property="Background" Value="#2A4051"/></Trigger>
+          <Trigger Property="Tag" Value="Current">
+            <Setter Property="Background" Value="#17463C"/><Setter Property="BorderBrush" Value="#50D7B2"/>
+            <Setter Property="Foreground" Value="#D2FFF0"/><Setter TargetName="CurrentMark" Property="Visibility" Value="Visible"/>
+          </Trigger>
+          <Trigger Property="Tag" Value="Pending">
+            <Setter Property="Background" Value="#3E3421"/><Setter Property="BorderBrush" Value="#E4B77A"/><Setter Property="Foreground" Value="#FFE6B3"/>
+          </Trigger>
+          <Trigger Property="IsKeyboardFocused" Value="True"><Setter Property="BorderBrush" Value="#8EB8FF"/></Trigger>
+          <Trigger Property="IsEnabled" Value="False"><Setter TargetName="ModeSurface" Property="Opacity" Value="0.45"/></Trigger>
+          <MultiTrigger><MultiTrigger.Conditions><Condition Property="Tag" Value="Current"/><Condition Property="IsEnabled" Value="False"/></MultiTrigger.Conditions>
+            <Setter TargetName="ModeSurface" Property="Opacity" Value="1"/>
+          </MultiTrigger>
+          <MultiTrigger><MultiTrigger.Conditions><Condition Property="Tag" Value="Pending"/><Condition Property="IsEnabled" Value="False"/></MultiTrigger.Conditions>
+            <Setter TargetName="ModeSurface" Property="Opacity" Value="1"/>
+          </MultiTrigger>
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
@@ -99,10 +133,46 @@
       <Setter Property="Background" Value="#1B2B38"/><Setter Property="Foreground" Value="#E8F0F6"/>
       <Setter Property="BorderBrush" Value="#304554"/><Setter Property="Padding" Value="10"/>
     </Style>
+    <Style TargetType="ScrollBar">
+      <Setter Property="Background" Value="#0B1117"/>
+      <Setter Property="Width" Value="10"/>
+      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ScrollBar">
+        <Grid Background="{TemplateBinding Background}">
+          <Track x:Name="PART_Track" Orientation="{TemplateBinding Orientation}" IsDirectionReversed="True"
+                 Minimum="{TemplateBinding Minimum}" Maximum="{TemplateBinding Maximum}"
+                 Value="{Binding Value, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}" ViewportSize="{TemplateBinding ViewportSize}">
+            <Track.DecreaseRepeatButton><RepeatButton x:Name="DecreasePage" Command="ScrollBar.PageUpCommand" Focusable="False">
+              <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+            </RepeatButton></Track.DecreaseRepeatButton>
+            <Track.Thumb><Thumb x:Name="ScrollThumb" Margin="2,2" MinHeight="24">
+              <Thumb.Template><ControlTemplate TargetType="Thumb">
+                <Border x:Name="ThumbSurface" Background="#304554" CornerRadius="3"/>
+                <ControlTemplate.Triggers>
+                  <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="ThumbSurface" Property="Background" Value="#577083"/></Trigger>
+                  <Trigger Property="IsDragging" Value="True"><Setter TargetName="ThumbSurface" Property="Background" Value="#50D7B2"/></Trigger>
+                </ControlTemplate.Triggers>
+              </ControlTemplate></Thumb.Template>
+            </Thumb></Track.Thumb>
+            <Track.IncreaseRepeatButton><RepeatButton x:Name="IncreasePage" Command="ScrollBar.PageDownCommand" Focusable="False">
+              <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent"/></ControlTemplate></RepeatButton.Template>
+            </RepeatButton></Track.IncreaseRepeatButton>
+          </Track>
+        </Grid>
+        <ControlTemplate.Triggers>
+          <Trigger Property="Orientation" Value="Horizontal">
+            <Setter Property="Width" Value="Auto"/><Setter Property="Height" Value="10"/>
+            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+            <Setter TargetName="ScrollThumb" Property="MinHeight" Value="0"/><Setter TargetName="ScrollThumb" Property="MinWidth" Value="24"/>
+            <Setter TargetName="DecreasePage" Property="Command" Value="ScrollBar.PageLeftCommand"/>
+            <Setter TargetName="IncreasePage" Property="Command" Value="ScrollBar.PageRightCommand"/>
+          </Trigger>
+        </ControlTemplate.Triggers>
+      </ControlTemplate></Setter.Value></Setter>
+    </Style>
   </Window.Resources>
   <ScrollViewer x:Name="Viewport" Background="#0B1117" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Grid x:Name="Dashboard" Margin="20,16">
-      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
       <Grid x:Name="Header" Margin="0,0,0,14">
         <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
         <StackPanel VerticalAlignment="Center" Margin="0,0,24,0">
@@ -173,28 +243,38 @@
           <DockPanel Margin="4,0,4,8">
             <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
               <TextBlock x:Name="ModeCurrent" Text="Current: connecting" FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0"/>
-              <ComboBox x:Name="ModeSelect" Width="130" ToolTip="Thermal preset. Selecting a preset does not apply it."/>
-              <Button x:Name="ModeApply" Content="Apply" IsEnabled="False" Margin="7,0,0,0"/>
+              <Button x:Name="ModeQuiet" Content="Quiet" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+              <Button x:Name="ModeBalanced" Content="Balanced" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+              <Button x:Name="ModePerformance" Content="Performance" Style="{StaticResource ModeButton}" IsEnabled="False"/>
             </StackPanel>
             <StackPanel VerticalAlignment="Center">
-              <TextBlock Text="03 / COOLING" Style="{StaticResource Section}" Foreground="#E4B77A"/>
+              <TextBlock Text="03 / PERFORMANCE &amp; COOLING" Style="{StaticResource Section}" Foreground="#E4B77A"/>
               <TextBlock x:Name="FanSummary" Text="Waiting for fan sensors" Style="{StaticResource Label}" Margin="0,3,12,0"/>
             </StackPanel>
           </DockPanel>
+          <StackPanel x:Name="PresetDetails" Orientation="Horizontal" HorizontalAlignment="Right" Margin="4,0,4,4">
+            <TextBlock Text="Cooling" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Button Width="54" MinWidth="54" Height="30" x:Name="CoolingQuiet" Content="Q" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+            <Button Width="54" MinWidth="54" Height="30" x:Name="CoolingBalanced" Content="B" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+            <Button Width="54" MinWidth="54" Height="30" x:Name="CoolingPerformance" Content="P" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+            <TextBlock Text="OC" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="18,0,8,0"/>
+            <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOff" Content="Off" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+            <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOC01" Content="OC01" Style="{StaticResource ModeButton}" IsEnabled="False"/>
+          </StackPanel>
           <UniformGrid x:Name="FanPanel" Rows="1"/>
           <UniformGrid x:Name="TemperaturePanel" Rows="1" Margin="0,4,0,0"/>
           <Grid Margin="4,7,4,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
             <TextBlock x:Name="AwccState" Text="Connecting to AWCC..." Style="{StaticResource Label}" Margin="0,0,16,0"/>
-            <TextBlock x:Name="ModeNotice" Grid.Column="1" Text="Apply a preset to change cooling. AWCC automation may override it." Style="{StaticResource Label}" HorizontalAlignment="Right"/>
+            <TextBlock x:Name="ModeNotice" Grid.Column="1" Text="Waiting for CPU and cooling verification" Style="{StaticResource Label}" HorizontalAlignment="Right"/>
           </Grid>
         </StackPanel>
       </Border>
-      <Grid x:Name="HistoryPanel" Grid.Row="3" MinHeight="158" Height="220" VerticalAlignment="Top">
+      <Grid x:Name="HistoryPanel" Grid.Row="3" MinHeight="158" Height="220" VerticalAlignment="Top" Margin="0,0,0,12">
         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
         <Border x:Name="CpuHistoryCard" Style="{StaticResource Card}">
           <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <DockPanel>
-              <TextBlock x:Name="CpuChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#50D7B2" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="12,0,0,0"/>
+              <TextBlock x:Name="CpuChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#50D7B2" FontSize="16" FontWeight="Bold" HorizontalAlignment="Right" Margin="12,0,0,0"/>
               <TextBlock x:Name="CpuChartTitle" Text="CPU temperature source · 120 s" Style="{StaticResource Label}" VerticalAlignment="Center"/>
             </DockPanel>
             <Canvas x:Name="CpuChart" Grid.Row="1" MinHeight="90" Background="Transparent" ClipToBounds="True" Margin="0,6,0,4"/>
@@ -204,11 +284,34 @@
         <Border x:Name="GpuHistoryCard" Grid.Column="2" Style="{StaticResource Card}">
           <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
             <DockPanel>
-              <TextBlock x:Name="GpuChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#8EB8FF" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Right" Margin="12,0,0,0"/>
+              <TextBlock x:Name="GpuChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#8EB8FF" FontSize="16" FontWeight="Bold" HorizontalAlignment="Right" Margin="12,0,0,0"/>
               <TextBlock Text="GPU temperature · 120 s" Style="{StaticResource Label}" VerticalAlignment="Center"/>
             </DockPanel>
             <Canvas x:Name="GpuChart" Grid.Row="1" MinHeight="90" Background="Transparent" ClipToBounds="True" Margin="0,6,0,4"/>
             <TextBlock x:Name="GpuChartSummary" Grid.Row="2" Text="Waiting for samples" Style="{StaticResource Label}"/>
+          </Grid>
+        </Border>
+      </Grid>
+      <Grid x:Name="NetworkHistoryPanel" Grid.Row="4" MinHeight="158" Height="220" VerticalAlignment="Top">
+        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <Border x:Name="DownloadHistoryCard" Style="{StaticResource Card}">
+          <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <DockPanel>
+              <TextBlock x:Name="DownloadChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#8EB8FF" FontSize="16" FontWeight="Bold" HorizontalAlignment="Right" Margin="12,0,0,0"/>
+              <TextBlock x:Name="DownloadChartTitle" Text="Network download · 120 s" Style="{StaticResource Label}" VerticalAlignment="Center"/>
+            </DockPanel>
+            <Canvas x:Name="DownloadChart" Grid.Row="1" MinHeight="90" Background="Transparent" ClipToBounds="True" Margin="0,6,0,4"/>
+            <TextBlock x:Name="DownloadChartSummary" Grid.Row="2" Text="Collecting network samples" Style="{StaticResource Label}"/>
+          </Grid>
+        </Border>
+        <Border x:Name="UploadHistoryCard" Grid.Column="2" Style="{StaticResource Card}">
+          <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+            <DockPanel>
+              <TextBlock x:Name="UploadChartCurrent" DockPanel.Dock="Right" Text="—" Foreground="#50D7B2" FontSize="16" FontWeight="Bold" HorizontalAlignment="Right" Margin="12,0,0,0"/>
+              <TextBlock x:Name="UploadChartTitle" Text="Network upload · 120 s" Style="{StaticResource Label}" VerticalAlignment="Center"/>
+            </DockPanel>
+            <Canvas x:Name="UploadChart" Grid.Row="1" MinHeight="90" Background="Transparent" ClipToBounds="True" Margin="0,6,0,4"/>
+            <TextBlock x:Name="UploadChartSummary" Grid.Row="2" Text="Collecting network samples" Style="{StaticResource Label}"/>
           </Grid>
         </Border>
       </Grid>

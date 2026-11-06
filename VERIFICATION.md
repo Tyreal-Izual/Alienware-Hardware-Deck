@@ -3,11 +3,34 @@
 The Windows CI builds the application, runs sensor/configuration/mode contract checks,
 tests a clean source checkout without an existing executable, and renders the real WPF
 view with fixture data. Display tests check 1920 x 1080 at 100%, 125%, and 150% scaling,
-both full height and with room for window chrome/taskbar. They check scrolling, primary
+both full height and with room for window chrome/taskbar. They check a complete four-chart
+fullscreen view at 100%/125%, vertical access to the network row when space is limited, primary
 text clipping, bounded chart height, the one-second default, interval changes, stale-data state, sensor-control
 reuse, and missing-sensor layout. No collector is started during display tests.
 An additional constrained-height check verifies that history panels use the measured
 remaining space rather than overflowing when Windows font metrics differ.
+
+Network throughput (2026-11-05): 27 checks cover native structure alignment, physical
+interface selection, duplicate-interface filtering, first-sample warmup, idle zeros,
+64-bit counter deltas, actual elapsed time, adapter changes, counter resets, long gaps,
+query failure/recovery, and rate formatting. A passive five-sample local probe identified
+one active Ethernet interface and returned independently varying upload/download rates
+without an administrator prompt or generated test traffic. Fixture rendering verifies
+matching temperature/network card sizes, separate units, peak labels, and disconnected
+states. At higher scaling the lower row remains accessible through a dark vertical scrollbar.
+An integrated `--probe` run also reported connected Ethernet with `Administrator=false`
+and nonzero independent receive/transmit rates.
+
+Elevated-display readability (2026-11-06): primary metric, detail, sensor-tile, and current
+chart values use bold weights, with brighter neutral readings. Display checks
+cover 100%/125%/150% scaling, including text clipping and matched history-card dimensions.
+The 1080p fixture preview was visually inspected; labels and axis ticks retain lighter weights.
+
+Preset controls (2026-11-06): fixture-driven UI checks verify linked and independent
+states, the OC/cooling interlock, pending highlights, duplicate-click suppression,
+failed readback, power-limit mismatches, external updates, and stale/unavailable data.
+Lifecycle checks cover late callbacks during close. These checks do not start a
+collector or change hardware modes. The worker runs separately from sensor sampling.
 
 Run `powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1`.
 Fixture previews are written to `.local/display-tests/renders`; their values are not live
@@ -66,7 +89,69 @@ Previously verified on Aurora R16 / i9-14900KF / RTX 4090:
 - Native UI, labeled temperature charts, normal-user failure states and elevated operation.
 - A 15-second steady-state observation recorded no process read/write bytes.
 
+Reviewed linked-control acceptance (2026-11-06):
+- 368 automated checks passed: 51 sensor/configuration/voltage, 32 window state,
+  27 network, 35 preset policy/verification, 24 lifecycle/readback, 170 display,
+  and 29 packaging/worker-protocol.
+  The real view fits 1080p fullscreen at 100% and 125% scaling without scrolling.
+- Live hardware-refresh plus batched XTU reads returned 37 critical active settings.
+  The old scalar getter that returned zeros is excluded from the implementation.
+- The complete live run passed Balanced/Off, Performance/OC01, Quiet/Off, independent
+  Performance cooling with OC Off, and both directions of the OC switch. OC01 requests
+  under Balanced and Quiet were rejected without changing their verified states.
+- Live reference measurements established PL1 = 170/180/253 W for Quiet/Balanced/
+  Performance cooling, with PL2 = 253 W throughout. OC identity and cooling power
+  are independently verified; Performance cooling with OC Off is not forced to 180 W.
+- The final run restored and read back Performance/OC01 with PL1/PL2 = 253/253 W.
+  Evidence is in `.local/awcc-sync/linked-presets-live.json` and
+  `cooling-policy-live.json`.
+- Deployment smoke check: the root executable matched the tested build hash and
+  rendered the new controls with live basic metrics. After a canceled administrator
+  launch, standard-permission mode correctly disabled privileged preset actions and
+  displayed Enable sensors. The previous complete build is retained for rollback.
+- A live cold-start check found AWCC controls on the private desktop in about four
+  seconds and no AWCC window on the input desktop. Temporary frontend/job cleanup
+  passed; no AWCC or test worker processes remained after the acceptance run.
+- Review regressions exercise timeout versus late completion, closed/disposed result
+  streams, bounded CRLF input, real worker rejection before backend creation, queued
+  UI callbacks during close, readback retry/disposal, and fresh CPU reads on cooling
+  changes. These tests do not change hardware modes. The existing live matrix remains
+  the hardware evidence; failure-path fixes were validated separately.
+- See [PRESET-CONTROLS.md](PRESET-CONTROLS.md) for the compatibility and verification
+  scope. These checks do not establish stability under load or support for OC02.
+
 Limits:
+- Local-only profile audit (2026-11-06): compared all 46 stored XTU entries in each
+  of Off/OC01/OC02 and 142 unique control targets in each recorded Off/OC01 proposal.
+  Off/OC01 differed in six submitted control values. OC02 adds 32 E-core target
+  differences versus OC01 and two stored memory fields; it was not activated.
+  No exact OC02 activation entry was found in the 209 existing overclocking log
+  files. State-dependent call order, unchanged-profile skipping, and memory/GPU
+  capability guards were established from local code. See
+  [AWCC-LOCAL-PROFILES.md](AWCC-LOCAL-PROFILES.md) for the evidence and limits.
+- Initial AWCC full-preset research (2026-11-06) established the installed UI/service call path
+  through read-only metadata inspection, including CPU/GPU/memory OC handling and
+  client-signature validation. Direct third-party service access remains unverified.
+  At that stage the tests covered thermal writes only; the integrated acceptance above
+  supersedes that limitation. The local call-path evidence is in
+  [AWCC-INTEGRATION.md](AWCC-INTEGRATION.md).
+- Authorized background validation (2026-11-06, 13:26–13:35): a separate UI Automation
+  prototype invoked Quiet/Balanced/Performance in the already-minimized AWCC frontend.
+  Eight service preset requests matched 24 successful CPU/GPU/thermal service results.
+  Subsequent code/capability inspection found that the eight GPU results are no-ops:
+  AWCC reports this GPU as not overclockable and returns success before tuning it.
+  The original Performance preset was restored. AWCC stayed minimized at the window
+  observations; the user confirmed opening it manually afterward. A hidden-window
+  focus transfer was found, and caller-focus return was observed in a separate local
+  harness. That prototype run alone did not validate integrated buttons, invisible cold startup, memory
+  OC changes, game/Custom transitions, first-use dialogs, or a production completion
+  protocol. See [AWCC-INTEGRATION.md](AWCC-INTEGRATION.md) for the exact evidence scope.
+- Direct OC follow-up: inspected and compared the local R16/i9-14900KF OEM CPU
+  configurations. Four hardcoded getter-only requests through the installed local-RPC
+  client returned false/empty responses; the server additionally validates caller
+  process signing. WMI metadata confirms `BiosOCKnobs` exists, but its setter was not
+  invoked. GitHub implementations were reviewed as source only. None of these checks
+  validates a standalone CPU tuning backend or a BIOS-only equivalent to AWCC.
 - CPU voltage uses the local Intel XTU getter used by AWCC on this R16. Other AWCC/XTU
   versions and non-XTU systems are not covered by the live verification.
 - Fan IDs 50, 55, 53 and 61 reported association code 1; this does not distinguish their physical positions.

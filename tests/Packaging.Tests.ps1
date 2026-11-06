@@ -54,6 +54,39 @@ try {
             Assert-True ($process.ExitCode -eq 2) "Invalid/removed command must fail without hardware actions: $arguments"
         } finally {$process.Dispose()}
     }
+    # Malformed protocol inputs are rejected before any backend/hardware is opened.
+    foreach($case in @(
+        @{Name='EOF';Input='';Reply=$false;ClosedOutput=$false},
+        @{Name='Malformed JSON';Input="not json`r`n";Reply=$true;ClosedOutput=$false},
+        @{Name='Null request';Input="null`r`n";Reply=$true;ClosedOutput=$false},
+        @{Name='Boundary CRLF';Input=((' '*4094)+"{}`r`n");Reply=$true;ClosedOutput=$false},
+        @{Name='Oversized';Input=(('x'*4097)+"`r`n");Reply=$false;ClosedOutput=$false},
+        @{Name='Closed parent pipe';Input="not json`r`n";Reply=$false;ClosedOutput=$true}
+    )){
+        $worker=New-Object Diagnostics.Process
+        $worker.StartInfo=New-Object Diagnostics.ProcessStartInfo
+        $worker.StartInfo.FileName=$target
+        $worker.StartInfo.Arguments='--preset-worker'
+        $worker.StartInfo.UseShellExecute=$false
+        $worker.StartInfo.CreateNoWindow=$true
+        $worker.StartInfo.RedirectStandardInput=$true
+        $worker.StartInfo.RedirectStandardOutput=$true
+        $worker.StartInfo.RedirectStandardError=$true
+        try {
+            [void]$worker.Start()
+            $stderr=$worker.StandardError.ReadToEndAsync()
+            $stdout=$null
+            if($case.ClosedOutput){$worker.StandardOutput.Close()}else{$stdout=$worker.StandardOutput.ReadToEndAsync()}
+            try{$worker.StandardInput.Write($case.Input);$worker.StandardInput.Close()}catch [IO.IOException]{}
+            if(-not $worker.WaitForExit(10000)){$worker.Kill();$worker.WaitForExit();throw "Worker protocol case hung: $($case.Name)"}
+            Assert-True ($worker.ExitCode -eq 2) "Worker must reject invalid input quietly: $($case.Name)"
+            Assert-True ([string]::IsNullOrWhiteSpace($stderr.Result)) "Worker must not crash on invalid input/closed pipes: $($case.Name)"
+            if($case.Reply){
+                $reply=$stdout.Result | ConvertFrom-Json
+                Assert-True (-not $reply.Success) "Malformed input must not report success: $($case.Name)"
+            }
+        }finally{$worker.Dispose()}
+    }
     Write-Host "$count clean-checkout and packaging checks passed."
 } finally {
     Remove-Variable -Name HardwareDeckPackagingLaunch -Scope Global -ErrorAction SilentlyContinue

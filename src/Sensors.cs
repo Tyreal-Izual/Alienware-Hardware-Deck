@@ -47,9 +47,11 @@ namespace HardwareDeck
         public double? CpuLoad { get; set; }
         public CpuTelemetry Cpu { get; set; }
         public ThermalModeState ThermalMode { get; set; }
+        public PresetState Preset { get; set; }
         public double? MemoryUsedGiB { get; set; }
         public double? MemoryTotalGiB { get; set; }
         public GpuData Gpu { get; set; }
+        public NetworkData Network { get; set; }
         public List<Reading> Sensors { get; set; }
         public Reading CpuTemperature { get; set; }
         public string CpuTemperatureSensorId { get; set; }
@@ -253,7 +255,8 @@ namespace HardwareDeck
                 Presets=presets.ToList(),CanChange=device!=null && Collector.IsAdmin && presets.Count>0 && current.HasValue,
                 Detail="Standard firmware presets only. AWCC automation may override the selected mode."};
         }
-        public ModeResult ApplyMode(int mode)
+        // Low-level cooling write for the guarded preset worker only.
+        internal ModeResult ApplyMode(int mode)
         {
             var result=new ModeResult{Requested=mode};
             try{
@@ -284,6 +287,8 @@ namespace HardwareDeck
         readonly SystemReader system = new SystemReader();
         readonly CpuTelemetryReader cpu=new CpuTelemetryReader();
         readonly NvidiaReader nvidia = new NvidiaReader();
+        readonly NetworkReader network = new NetworkReader();
+        readonly CpuPresetReader cpuPreset = new CpuPresetReader();
         readonly AwccReader awcc;
         readonly SensorConfiguration configuration;
         readonly string cpuName, computerModel;
@@ -326,12 +331,13 @@ namespace HardwareDeck
             result.CpuTemperatureSelection=configuration.DescribeSelection(result.CpuTemperature);
             result.AwccStatus = awcc.Status;
             result.ThermalMode=awcc.ReadMode();
+            result.Preset=PresetStateFactory.Create(cpuPreset.ReadForCooling(result.ThermalMode.CurrentId),result.ThermalMode);
+            result.Network=network.Read();
             result.SampleMilliseconds = timer.Elapsed.TotalMilliseconds;
             result.CapturedAt = DateTime.UtcNow.ToString("o");
             return result;
         }
-        public ModeResult SetThermalMode(int mode) { return awcc.ApplyMode(mode); }
-        public void Dispose() { awcc.Dispose(); nvidia.Dispose(); cpu.Dispose(); }
+        public void Dispose() { awcc.Dispose(); nvidia.Dispose(); cpu.Dispose(); cpuPreset.Dispose(); }
     }
     public static class SnapshotFile
     {

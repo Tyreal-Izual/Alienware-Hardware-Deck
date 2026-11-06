@@ -17,7 +17,7 @@ using System.Windows.Threading;
 
 namespace HardwareDeck
 {
-    public sealed class HistoryPoint { public DateTime Time; public double? Cpu, Gpu; }
+    public sealed class HistoryPoint { public DateTime Time; public double? Cpu, Gpu, Download, Upload; }
     public sealed class DeckWindow
     {
         readonly Window window;
@@ -27,12 +27,14 @@ namespace HardwareDeck
         readonly bool stay;
         bool previewSaved;
         readonly CancellationTokenSource cancellation = new CancellationTokenSource();
+        Task samplingTask;
         readonly List<HistoryPoint> history = new List<HistoryPoint>();
         DateTime lastUpdate = DateTime.MinValue;
         Snapshot latest;
         volatile int interval = 1000;
         int samples;
-        int requestedMode=-1;
+        PresetRequest pendingRequest;
+        string presetNotice;
         bool modeBusy;
         string collectionError;
         bool? compactLayout;
@@ -71,13 +73,13 @@ namespace HardwareDeck
             Find<Button>("ScreenButton").Click += (s,e) => placement.NextDisplay();
             Find<Button>("PinButton").Click += (s,e) => placement.ToggleTopmost();
             Find<Button>("FullButton").Click += (s,e) => placement.ToggleFullscreen();
-            Find<Button>("ModeApply").Click += (s,e) => {
-                var chosen=Find<ComboBox>("ModeSelect").SelectedItem as ThermalPreset;
-                if(chosen==null || modeBusy || latest==null || latest.ThermalMode==null || !latest.ThermalMode.CanChange)return;
-                modeBusy=true;Find<Button>("ModeApply").IsEnabled=false;
-                Text("ModeNotice","Applying preset and verifying firmware readback...");
-                Interlocked.Exchange(ref requestedMode,chosen.Id);
-            };
+            foreach(int id in new[]{163,160,161}){
+                int target=id;
+                Find<Button>("Mode"+ModeName(target)).Click+=(s,e)=>RequestMode(target);
+                Find<Button>("Cooling"+ModeName(target)).Click+=(s,e)=>RequestPreset(new PresetRequest{Kind="cooling",Value=target});
+            }
+            Find<Button>("CpuOff").Click+=(s,e)=>RequestPreset(new PresetRequest{Kind="cpu",Value=0});
+            Find<Button>("CpuOC01").Click+=(s,e)=>RequestPreset(new PresetRequest{Kind="cpu",Value=1});
             Find<ComboBox>("Interval").SelectionChanged += (s,e) => {
                 interval = new[] {1000,2000,5000}[Math.Max(0, Math.Min(2, Find<ComboBox>("Interval").SelectedIndex))];
                 UpdateStatus();
@@ -85,11 +87,19 @@ namespace HardwareDeck
             Find<ScrollViewer>("Viewport").SizeChanged += (s,e) => FitDashboard();
             Find<Grid>("Dashboard").LayoutUpdated += FitHistoryHeight;
             window.KeyDown += (s,e) => { if (e.Key == System.Windows.Input.Key.F11) placement.ToggleFullscreen(); else if (e.Key == System.Windows.Input.Key.Escape && placement.IsFullscreen) placement.ToggleFullscreen(); };
-            window.Closed += (s,e) => { cancellation.Cancel(); clock.Stop(); Find<Grid>("Dashboard").LayoutUpdated -= FitHistoryHeight; };
+            window.Closed += (s,e) => {
+                cancellation.Cancel();clock.Stop();Find<Grid>("Dashboard").LayoutUpdated-=FitHistoryHeight;
+                if(samplingTask==null)ReleaseSamplingResources();
+                else samplingTask.ContinueWith(t=>ReleaseSamplingResources(),TaskScheduler.Default);
+            };
             Find<Canvas>("CpuChart").SizeChanged += (s,e) => DrawCharts();
             Find<Canvas>("GpuChart").SizeChanged += (s,e) => DrawCharts();
+            Find<Canvas>("DownloadChart").SizeChanged += (s,e) => DrawCharts();
+            Find<Canvas>("UploadChart").SizeChanged += (s,e) => DrawCharts();
             Find<Canvas>("CpuChart").MouseMove += (s,e) => InspectChart(Find<Canvas>("CpuChart"),true,e);
             Find<Canvas>("GpuChart").MouseMove += (s,e) => InspectChart(Find<Canvas>("GpuChart"),false,e);
+            Find<Canvas>("DownloadChart").MouseMove += (s,e) => InspectChart(Find<Canvas>("DownloadChart"),true,e,true);
+            Find<Canvas>("UploadChart").MouseMove += (s,e) => InspectChart(Find<Canvas>("UploadChart"),false,e,true);
             if (Collector.IsAdmin) { Find<Button>("AdminButton").Content = "Sensors enabled"; Find<Button>("AdminButton").IsEnabled = false; }
             Text("Clock", DateTime.Now.ToString("HH:mm:ss"));
             clock.Interval = TimeSpan.FromSeconds(1);
@@ -97,20 +107,105 @@ namespace HardwareDeck
                 Text("Clock", DateTime.Now.ToString("HH:mm:ss") + (window.Topmost ? "  ·  Pinned" : ""));
                 UpdateStatus();
             };
-            window.Loaded += (s,e) => { clock.Start(); Task.Run((Action)CollectLoop); };
+            window.Loaded += (s,e) => { if(samplingTask==null){clock.Start();samplingTask=Task.Run((Action)CollectLoop);} };
         }
         public void Run() { new Application().Run(window); }
+        void ReleaseSamplingResources() { cancellation.Dispose(); }
+        static string ModeName(int id) { return id==163?"Quiet":id==160?"Balanced":id==161?"Performance":null; }
+        bool HasFreshSample()
+        {
+            double age=(DateTime.UtcNow-lastUpdate).TotalSeconds;
+            return latest!=null && collectionError==null && age>=0 && age<=Math.Max(5,interval/1000.0*3);
+        }
+        void RequestMode(int id)
+        {
+            RequestPreset(new PresetRequest{Kind="preset",Value=id});
+        }
+        bool PresetFresh()
+        {
+            DateTime captured;
+            return HasFreshSample() && latest.Preset!=null && DateTime.TryParse(latest.Preset.CapturedAt,null,DateTimeStyles.RoundtripKind,out captured) &&
+                (DateTime.UtcNow-captured.ToUniversalTime()).TotalSeconds>=0 && (DateTime.UtcNow-captured.ToUniversalTime()).TotalSeconds<=Math.Max(8,interval/1000.0*3);
+        }
+        void RequestPreset(PresetRequest request)
+        {
+            if(modeBusy || !PresetFresh())return;
+            var state=latest.Preset;
+            PresetTarget target;
+            try{target=PresetPolicy.Resolve(request,state);}catch{return;}
+            if(latest.ThermalMode==null || latest.ThermalMode.Presets==null || !latest.ThermalMode.Presets.Any(p=>p.Id==target.Cooling))return;
+            if(target.Matches(state))return;
+            modeBusy=true;pendingRequest=request;
+            presetNotice=null;
+            Text("ModeNotice","Applying in background · Verifying CPU and cooling...");UpdateModeButtons();
+            // Offscreen fixture/preview windows never launch a hardware worker.
+            if(!window.IsVisible || !string.IsNullOrEmpty(preview))return;
+            var handle=new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            Task.Run(()=>{
+                PresetResult result;
+                try{result=PresetWorker.Execute(request,handle);}catch(Exception e){result=new PresetResult{Message="Preset switch failed: "+e.Message};}
+                PostIfOpen(()=>CompletePreset(result));
+            });
+        }
+        void PostIfOpen(Action action)
+        {
+            if(cancellation.IsCancellationRequested || window.Dispatcher.HasShutdownStarted || window.Dispatcher.HasShutdownFinished)return;
+            try{window.Dispatcher.BeginInvoke(new Action(()=>{if(!cancellation.IsCancellationRequested)action();}));}
+            catch(InvalidOperationException){ } // The dispatcher may stop after the check.
+        }
+        void UpdateModeButtons()
+        {
+            var mode=latest==null?null:latest.ThermalMode;
+            var state=latest==null?null:latest.Preset;
+            bool fresh=PresetFresh();
+            bool enabled=fresh && state.CanChange && mode!=null && mode.CanChange && !modeBusy;
+            bool conflict=fresh && state.Cpu==1 && state.Cooling!=161;
+            Text("ModeCurrent",!fresh || !state.CpuReadable || !state.PowerVerified?"Unverified":conflict?"Conflict":state.LinkedPreset.HasValue?"Linked":"Independent");
+            Find<TextBlock>("ModeCurrent").ToolTip=state==null?"Waiting for CPU and cooling readback":state.Detail;
+            foreach(int id in new[]{163,160,161}){
+                string name=ModeName(id);
+                bool supported=mode!=null && mode.Presets!=null && mode.Presets.Any(p=>p.Id==id);
+                SetPresetButton("Mode"+name,name,enabled && supported,fresh && state.LinkedPreset==id,"preset",id,
+                    "Apply the full AWCC "+name+" preset");
+                SetPresetButton("Cooling"+name,name.Substring(0,1),enabled && supported && (id!=161 || state.Cpu.HasValue),fresh && state.Cooling==id,"cooling",id,
+                    name+" cooling"+(id==161?" · Preserve CPU Off / OC01":" · CPU OC switches Off first"));
+            }
+            SetPresetButton("CpuOff","Off",enabled && state.Cooling.HasValue && PresetPolicy.IsCooling(state.Cooling.Value),fresh && state.CpuReadable && state.Cpu==0,"cpu",0,"OC Off · Retain cooling and its BIOS power policy");
+            SetPresetButton("CpuOC01","OC01",enabled && state.Cooling==161,fresh && state.CpuReadable && state.Cpu==1,"cpu",1,
+                "CPU OC01 requires Performance cooling");
+            if(!modeBusy)Text("ModeNotice",state!=null && !state.CanChange?state.Detail:!fresh?"Waiting for fresh CPU and cooling readback":conflict?"OC01 requires Performance cooling · Select a main preset":
+                !state.CanChange || !state.Cpu.HasValue || !state.PowerVerified?state.Detail:presetNotice??"OC and cooling verified");
+        }
+        void SetPresetButton(string control,string label,bool enabled,bool current,string kind,int value,string hint)
+        {
+            var button=Find<Button>(control);
+            bool pending=modeBusy && pendingRequest!=null && pendingRequest.Kind==kind && pendingRequest.Value==value;
+            button.Tag=current?"Current":pending?"Pending":null;button.Content=label+(pending?"…":"");button.IsEnabled=enabled;
+            button.ToolTip=modeBusy?"Waiting for CPU and cooling verification":hint;
+            System.Windows.Automation.AutomationProperties.SetName(button,hint);
+            System.Windows.Automation.AutomationProperties.SetItemStatus(button,current?"Current":pending?"Switching":enabled?"Available":"Unavailable");
+        }
+        void CompletePreset(PresetResult result)
+        {
+            CpuPresetReader.InvalidateAll();
+            modeBusy=false;pendingRequest=null;
+            presetNotice=result.Message;
+            if(latest!=null){
+                latest.Preset=result.Actual??new PresetState{CapturedAt=DateTime.UtcNow.ToString("o"),Detail=result.Message};
+            }
+            Text("ModeNotice",result.Message);UpdateModeButtons();
+        }
         void FitDashboard()
         {
             var viewport = Find<ScrollViewer>("Viewport");
-            bool compact=viewport.ActualHeight<760;
+            bool compact=viewport.ActualHeight<900;
             var dashboard=Find<Grid>("Dashboard");
             dashboard.MinHeight = Math.Max(0, viewport.ActualHeight - (compact?24:32));
             if(compactLayout==compact)return;
             compactLayout=compact;
             dashboard.Margin=new Thickness(20,compact?12:16,20,compact?12:16);
             Find<Grid>("Header").Margin=new Thickness(0,0,0,compact?10:14);
-            foreach(var name in new[]{"CpuCard","GpuCard","CpuHistoryCard","GpuHistoryCard"})
+            foreach(var name in new[]{"CpuCard","GpuCard","CpuHistoryCard","GpuHistoryCard","DownloadHistoryCard","UploadHistoryCard"})
                 Find<Border>(name).Padding=new Thickness(compact?14:18,compact?8:14,compact?14:18,compact?8:14);
             Find<Border>("CoolingCard").Padding=new Thickness(14,compact?8:12,14,compact?8:12);
             foreach(var name in new[]{"CpuName","GpuName"})Find<TextBlock>(name).Margin=new Thickness(0,compact?3:5,0,compact?6:10);
@@ -124,10 +219,14 @@ namespace HardwareDeck
             var dashboard=Find<Grid>("Dashboard");
             double occupied=dashboard.RowDefinitions.Take(3).Sum(row=>row.ActualHeight);
             if(occupied<=0)return;
-            double available=Find<ScrollViewer>("Viewport").ActualHeight-dashboard.Margin.Top-dashboard.Margin.Bottom-occupied;
+            double available=Find<ScrollViewer>("Viewport").ActualHeight-dashboard.Margin.Top-dashboard.Margin.Bottom-occupied-12;
             var panel=Find<Grid>("HistoryPanel");
-            double height=Math.Max(panel.MinHeight,Math.Min(compactLayout==true?158:220,Math.Floor(available)));
+            panel.MinHeight=compactLayout==true?158:174;
+            double height=Math.Max(panel.MinHeight,Math.Min(compactLayout==true?158:220,Math.Floor(available/2)));
             if(Math.Abs(panel.Height-height)>0.5)panel.Height=height;
+            var networkPanel=Find<Grid>("NetworkHistoryPanel");
+            networkPanel.MinHeight=panel.MinHeight;
+            if(Math.Abs(networkPanel.Height-height)>0.5)networkPanel.Height=height;
         }
         void UpdateWindowButtons()
         {
@@ -137,6 +236,7 @@ namespace HardwareDeck
         }
         void UpdateStatus()
         {
+            UpdateModeButtons();
             if(collectionError!=null){
                 Text("LiveState", "COLLECTION STOPPED");
                 Find<Ellipse>("LiveDot").Fill = Brush("#E4B77A");
@@ -161,27 +261,29 @@ namespace HardwareDeck
                     while (!cancellation.IsCancellationRequested)
                     {
                         var timer = Stopwatch.StartNew();
-                        int mode=Interlocked.Exchange(ref requestedMode,-1);
-                        if(mode>=0){
-                            var result=collector.SetThermalMode(mode);
-                            window.Dispatcher.BeginInvoke(new Action(()=>{modeBusy=false;Text("ModeNotice",result.Message);}));
-                        }
                         var snapshot = collector.Sample();
                         if (cancellation.IsCancellationRequested) break;
-                        window.Dispatcher.BeginInvoke(new Action(() => Update(snapshot)));
+                        PostIfOpen(()=>Update(snapshot));
                         if (cancellation.Token.WaitHandle.WaitOne(Math.Max(100,interval-(int)timer.ElapsedMilliseconds))) break;
                     }
                 }
             } catch(Exception ex) {
-                if (!cancellation.IsCancellationRequested)
-                    window.Dispatcher.BeginInvoke(new Action(()=> {
+                PostIfOpen(()=> {
                         collectionError=ex.GetType().Name;
+                        if(modeBusy)Text("ModeNotice","Preset switch could not be verified. Restart HardwareDeck to reconnect.");
                         UpdateStatus();
-                    }));
+                    });
             }
         }
         void Update(Snapshot value)
         {
+            DateTime previousPresetTime,incomingPresetTime;
+            if(latest!=null && latest.Preset!=null && value.Preset!=null &&
+               DateTime.TryParse(latest.Preset.CapturedAt,null,DateTimeStyles.RoundtripKind,out previousPresetTime) &&
+               DateTime.TryParse(value.Preset.CapturedAt,null,DateTimeStyles.RoundtripKind,out incomingPresetTime) && incomingPresetTime<previousPresetTime)
+                value.Preset=latest.Preset;
+            if(!modeBusy && latest!=null && latest.Preset!=null && value.Preset!=null &&
+               (latest.Preset.Cpu!=value.Preset.Cpu || latest.Preset.Cooling!=value.Preset.Cooling))presetNotice=null;
             latest=value; collectionError=null;
             DateTime captured;
             lastUpdate=DateTime.TryParse(value.CapturedAt, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out captured)
@@ -198,18 +300,6 @@ namespace HardwareDeck
             Find<TextBlock>("CpuFrequency").ToolTip=cpu.FrequencySource;
             Find<TextBlock>("CpuPower").ToolTip=cpu.PowerSource;
             Find<TextBlock>("CpuVoltage").ToolTip=cpu.VoltageSource;
-            var mode=value.ThermalMode??new ThermalModeState{Presets=new List<ThermalPreset>(),CurrentName="Disconnected"};
-            Text("ModeCurrent","Current: "+mode.CurrentName);
-            var select=Find<ComboBox>("ModeSelect");
-            if(!select.Items.Cast<ThermalPreset>().Select(p=>p.Id).SequenceEqual(mode.Presets.Select(p=>p.Id))){
-                var chosen=select.SelectedItem as ThermalPreset;
-                select.ItemsSource=mode.Presets;
-                select.SelectedItem=mode.Presets.FirstOrDefault(p=>chosen!=null && p.Id==chosen.Id)??
-                    mode.Presets.FirstOrDefault(p=>p.Id==mode.CurrentId)??mode.Presets.FirstOrDefault();
-            }
-            select.IsEnabled=mode.CanChange&&!modeBusy;
-            Find<Button>("ModeApply").IsEnabled=mode.CanChange&&!modeBusy;
-            Find<TextBlock>("ModeCurrent").ToolTip=mode.Detail;
             Text("CpuLoad",Display(value.CpuLoad," %","0"));
             Text("CpuTemp",Display(temp==null?null:temp.Value," °C","0"));
             Text("CpuTempLabel",temp==null?"CPU temperature unavailable":temp.Name);
@@ -245,9 +335,14 @@ namespace HardwareDeck
             var extraTemperatures=value.Sensors.Where(s=>s.Kind=="temperature" && (temp==null || s.Id!=temp.Id)).ToList();
             ReconcileTiles(Find<UniformGrid>("TemperaturePanel"), temperatureTiles, extraTemperatures.Select(s=>s.Id).ToList(), true);
             foreach(var extra in extraTemperatures)
-                temperatureTiles[extra.Id].Update(extra.Name,Display(extra.Value," °C","0"),extra.Id,null,null,"#B7C9D5");
+                temperatureTiles[extra.Id].Update(extra.Name,Display(extra.Value," °C","0"),extra.Id,null,null,"#DCE8F2");
 
-            history.Add(new HistoryPoint{Time=lastUpdate,Cpu=temp==null?null:temp.Value,Gpu=gpu.Temperature});
+            var network=value.Network??new NetworkData{Status="Unavailable",Detail="Waiting for network data",AdapterNames=new string[0]};
+            string networkSource=network.Detail+"\n"+string.Join(", ",network.AdapterNames??new string[0])+"\nRates are bytes per second, including local-network traffic.";
+            foreach(var name in new[]{"DownloadChartTitle","UploadChartTitle","DownloadChartCurrent","UploadChartCurrent"})
+                Find<TextBlock>(name).ToolTip=networkSource;
+            history.Add(new HistoryPoint{Time=lastUpdate,Cpu=temp==null?null:temp.Value,Gpu=gpu.Temperature,
+                Download=network.DownloadBytesPerSecond,Upload=network.UploadBytesPerSecond});
             history.RemoveAll(p=>(lastUpdate-p.Time).TotalSeconds>120); DrawCharts();
             UpdateStatus();
             if(!previewSaved && !string.IsNullOrEmpty(preview) && samples>=3)
@@ -273,7 +368,7 @@ namespace HardwareDeck
             {
                 temperatureTile=compact;
                 label=new TextBlock{Foreground=Brush("#9CAEBB"),FontSize=11,TextTrimming=TextTrimming.CharacterEllipsis};
-                reading=new TextBlock{FontSize=compact?14:23,Margin=new Thickness(0,compact?2:4,0,0),TextTrimming=TextTrimming.CharacterEllipsis};
+                reading=new TextBlock{FontSize=compact?14:23,FontWeight=FontWeights.Bold,Margin=new Thickness(0,compact?2:4,0,0),TextTrimming=TextTrimming.CharacterEllipsis};
                 bar=new ProgressBar{Maximum=100,Height=3,Margin=new Thickness(0,6,0,0),Background=Brush("#253442"),Visibility=compact?Visibility.Collapsed:Visibility.Hidden};
                 var grid=new Grid();grid.ColumnDefinitions.Add(new ColumnDefinition());grid.ColumnDefinitions.Add(new ColumnDefinition{Width=GridLength.Auto});
                 for(int i=0;i<3;i++)grid.RowDefinitions.Add(new RowDefinition{Height=GridLength.Auto});
@@ -325,26 +420,37 @@ namespace HardwareDeck
             if(history.Count==0)return;
             Draw(Find<Canvas>("CpuChart"),true,"#50D7B2");
             Draw(Find<Canvas>("GpuChart"),false,"#8EB8FF");
+            Draw(Find<Canvas>("DownloadChart"),true,"#8EB8FF",true);
+            Draw(Find<Canvas>("UploadChart"),false,"#50D7B2",true);
         }
         void ChartText(Canvas canvas,string text,double x,double y,string color,double size)
         {
             var label=new TextBlock{Text=text,Foreground=Brush(color),FontSize=size};
             Canvas.SetLeft(label,x);Canvas.SetTop(label,y);canvas.Children.Add(label);
         }
-        void Draw(Canvas canvas,bool cpu,string color)
+        static double? ChartValue(HistoryPoint point,bool first,bool network)
+        {
+            return network?(first?point.Download:point.Upload):(first?point.Cpu:point.Gpu);
+        }
+        void Draw(Canvas canvas,bool first,string color,bool network=false)
         {
             canvas.Children.Clear();
             double width=canvas.ActualWidth,height=canvas.ActualHeight;
-            const double left=40,right=12,top=16,bottom=26;
+            const double left=40;
+            const double right=12,top=16,bottom=26;
             double plotWidth=width-left-right,plotHeight=height-top-bottom;
             if(plotWidth<=0 || plotHeight<=0)return;
-            var valid=history.Select(p=>cpu?p.Cpu:p.Gpu).Where(v=>v.HasValue).Select(v=>v.Value).ToList();
-            double maximum=Math.Max(120,valid.Count==0?120:Math.Ceiling(valid.Max()/30)*30);
-            ChartText(canvas,"°C",0,0,"#93A7B8",10);
-            for(int degree=0;degree<=maximum;degree+=30){
-                double y=top+plotHeight*(1-degree/maximum);
+            var valid=history.Select(p=>ChartValue(p,first,network)).Where(v=>v.HasValue).Select(v=>v.Value).ToList();
+            double peak=valid.Count==0?0:valid.Max();
+            double maximum=network?NetworkRates.AxisMaximum(peak):Math.Max(120,Math.Ceiling(peak/30)*30);
+            double divisor=network?NetworkRates.Divisor(maximum):1;
+            ChartText(canvas,network?NetworkRates.Unit(divisor):"°C",0,0,"#93A7B8",10);
+            int steps=network?4:(int)(maximum/30);
+            for(int step=0;step<=steps;step++){
+                double level=maximum*step/steps;
+                double y=top+plotHeight*(1-level/maximum);
                 canvas.Children.Add(new Line{X1=left,X2=left+plotWidth,Y1=y,Y2=y,Stroke=Brush("#243746"),StrokeThickness=1});
-                ChartText(canvas,degree.ToString(),3,y-7,"#93A7B8",10);
+                ChartText(canvas,(level/divisor).ToString(network?"0.##":"0",CultureInfo.InvariantCulture),3,y-7,"#93A7B8",10);
             }
             for(int seconds=120;seconds>=0;seconds-=30){
                 double x=left+plotWidth*(1-seconds/120.0);
@@ -356,7 +462,7 @@ namespace HardwareDeck
             }
             var line=new Polyline{Stroke=Brush(color),StrokeThickness=2};
             foreach(var point in history){
-                double? value=cpu?point.Cpu:point.Gpu;
+                double? value=ChartValue(point,first,network);
                 if(!value.HasValue){
                     if(line.Points.Count>1)canvas.Children.Add(line);
                     line=new Polyline{Stroke=Brush(color),StrokeThickness=2};continue;
@@ -367,26 +473,36 @@ namespace HardwareDeck
             }
             if(line.Points.Count>1)canvas.Children.Add(line);
             var latestPoint=history.LastOrDefault();
-            double? current=latestPoint==null?null:(cpu?latestPoint.Cpu:latestPoint.Gpu);
-            Text(cpu?"CpuChartCurrent":"GpuChartCurrent",Display(current," °C","0.0"));
-            Text(cpu?"CpuChartSummary":"GpuChartSummary",valid.Count==0?"No temperature samples":
-                "Min "+valid.Min().ToString("0.0")+" °C   ·   Max "+valid.Max().ToString("0.0")+" °C   ·   Hover to inspect");
+            double? current=latestPoint==null?null:ChartValue(latestPoint,first,network);
+            string prefix=(network?(first?"Download":"Upload"):(first?"Cpu":"Gpu"))+"Chart";
+            Text(prefix+"Current",network?NetworkRates.Format(current):Display(current," °C","0.0"));
+            if(network){
+                var info=latest==null?null:latest.Network;
+                int count=info==null?0:info.AdapterCount;
+                Text(prefix+"Summary",current.HasValue?"Peak "+NetworkRates.Format(peak)+" · "+count+(count==1?" adapter":" adapters")+" · Hover to inspect":
+                    (info==null?"Waiting for network data":info.Detail));
+                Find<TextBlock>(prefix+"Current").ToolTip=Find<TextBlock>(prefix+"Title").ToolTip;
+                Find<TextBlock>(prefix+"Summary").ToolTip=Find<TextBlock>(prefix+"Title").ToolTip;
+            }else Text(prefix+"Summary",valid.Count==0?"No temperature samples":
+                "Min "+valid.Min().ToString("0.0")+" °C   ·   Max "+peak.ToString("0.0")+" °C   ·   Hover to inspect");
             if(current.HasValue){
                 var marker=new Ellipse{Width=6,Height=6,Fill=Brush(color)};
                 Canvas.SetLeft(marker,left+plotWidth-3);Canvas.SetTop(marker,top+plotHeight*(1-current.Value/maximum)-3);canvas.Children.Add(marker);
             }
         }
-        void InspectChart(Canvas canvas,bool cpu,System.Windows.Input.MouseEventArgs e)
+        void InspectChart(Canvas canvas,bool first,System.Windows.Input.MouseEventArgs e,bool network=false)
         {
             if(history.Count==0)return;
-            double fraction=Math.Max(0,Math.Min(1,(e.GetPosition(canvas).X-40)/Math.Max(1,canvas.ActualWidth-52)));
+            const double left=40;
+            double fraction=Math.Max(0,Math.Min(1,(e.GetPosition(canvas).X-left)/Math.Max(1,canvas.ActualWidth-left-12)));
             var target=lastUpdate.AddSeconds(-120*(1-fraction));
             var point=history.OrderBy(p=>Math.Abs((p.Time-target).TotalSeconds)).First();
             // Do not present the oldest point as a sample for an unrecorded part of the chart.
             if(target<history[0].Time.AddMilliseconds(-interval) || Math.Abs((point.Time-target).TotalMilliseconds)>interval*1.5){
                 canvas.ToolTip="No sample at this time";return;
             }
-            canvas.ToolTip=point.Time.ToLocalTime().ToString("HH:mm:ss")+"  ·  "+Display(cpu?point.Cpu:point.Gpu," °C","0.0");
+            double? value=ChartValue(point,first,network);
+            canvas.ToolTip=point.Time.ToLocalTime().ToString("HH:mm:ss")+"  ·  "+(network?NetworkRates.Format(value):Display(value," °C","0.0"));
         }
         void Elevate()
         {
@@ -405,11 +521,13 @@ namespace HardwareDeck
             CultureInfo.DefaultThreadCurrentCulture=CultureInfo.GetCultureInfo("en-US");
             CultureInfo.DefaultThreadCurrentUICulture=CultureInfo.GetCultureInfo("en-US");
             string root=AppDomain.CurrentDomain.BaseDirectory;
+            bool worker=args.Length==1 && args[0]=="--preset-worker";
             bool probe=args.Length==2 && args[0]=="--probe" && !string.IsNullOrWhiteSpace(args[1]);
             bool preview=(args.Length==2 || (args.Length==3 && args[2]=="--stay")) &&
                 args[0]=="--preview" && !string.IsNullOrWhiteSpace(args[1]);
-            if(args.Length!=0 && !probe && !preview)return 2;
+            if(args.Length!=0 && !probe && !preview && !worker)return 2;
             try {
+                if(worker)return PresetWorker.Run();
                 if(probe)
                 {
                     using(var collector=new Collector(root)){

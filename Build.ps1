@@ -9,10 +9,10 @@ if (-not (Test-Path -LiteralPath $compiler)) { throw 'The Windows .NET Framework
 $framework = Split-Path -Parent $compiler
 $wpf = Join-Path $framework 'WPF'
 $arguments = @('/nologo','/target:winexe','/platform:x64','/optimize+','/codepage:65001',('/out:' + $outputFile))
-foreach ($reference in @('System.dll','System.Core.dll','System.Management.dll','System.ServiceModel.dll','System.Web.Extensions.dll','System.Windows.Forms.dll','System.Drawing.dll','System.Xaml.dll')) {
+foreach ($reference in @('System.dll','System.Core.dll','System.Management.dll','System.ServiceModel.dll','System.Runtime.Serialization.dll','System.Web.Extensions.dll','System.Windows.Forms.dll','System.Drawing.dll','System.Xaml.dll')) {
     $arguments += '/reference:' + (Join-Path $framework $reference)
 }
-foreach ($reference in @('PresentationFramework.dll','PresentationCore.dll','WindowsBase.dll')) {
+foreach ($reference in @('PresentationFramework.dll','PresentationCore.dll','WindowsBase.dll','UIAutomationClient.dll','UIAutomationTypes.dll')) {
     $arguments += '/reference:' + (Join-Path $wpf $reference)
 }
 $arguments += '/win32manifest:' + (Join-Path $PSScriptRoot 'app.manifest')

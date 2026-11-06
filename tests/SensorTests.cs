@@ -100,6 +100,6 @@ public static class SensorTests
         var operation=(OperationContractAttribute)Attribute.GetCustomAttribute(operations[0],typeof(OperationContractAttribute));
         Check(operation.Action=="http://tempuri.org/IXtuTuning/GetCoreVoltageValue","Voltage request must match the installed XTU contract");
         Console.WriteLine(count+" sensor, configuration, voltage and mode contract checks passed.");
-        WindowPreferencesTests.Run();return 0;
+        WindowPreferencesTests.Run();NetworkTests.Run();PresetTests.Run();PresetLifecycleTests.Run();return 0;
     }
 }
