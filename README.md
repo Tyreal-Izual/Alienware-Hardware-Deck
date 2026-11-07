@@ -59,7 +59,7 @@ from the user-data folder above; the next launch uses visible defaults.
 | --- | --- |
 | CPU load / memory | Windows system APIs |
 | CPU frequency | Windows performance-counter estimate, not an instantaneous per-core peak |
-| CPU power | Intel IPF/RAPL, with warmup and invalid-value filtering |
+| CPU power / limit | Intel IPF/RAPL package power and the current sustained (PL1) limit from XTU active readback; limit requires administrator access |
 | CPU voltage | The installed Intel XTU service's voltage getter, also used by AWCC on this R16; administrator access required. Existing compatible WMI sources are a fallback. |
 | GPU metrics | In-process NVIDIA NVML; fan speed is a driver-reported percentage |
 | Network upload / download | Windows IP Helper 64-bit interface counters; combined traffic of connected physical adapters |
@@ -87,6 +87,12 @@ The full live switch matrix and OC interlock passed on the audited machine. Cool
 also sets a BIOS power policy: Quiet/Balanced/Performance use 170/180/253 W PL1,
 respectively, with 253 W PL2. Performance cooling with OC Off is therefore a valid
 independent combination at 253 W; OC identity and cooling power are checked separately.
+
+CPU package power and GPU power show `current / limit W`, with the unit beside the
+values. CPU limits follow actual PL1 readback, including immediately after a verified
+mode change. The tooltip identifies PL1 and shows the short boost limit (PL2);
+brief package-power readings can exceed the sustained limit. Missing or expired
+CPU limit data displays an em dash.
 See [preset controls and validation](PRESET-CONTROLS.md) for scope and limitations.
 
 See the [local profile audit](AWCC-LOCAL-PROFILES.md) for Off/OC01/OC02 definitions and

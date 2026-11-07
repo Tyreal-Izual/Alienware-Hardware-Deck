@@ -212,7 +212,7 @@
             <ProgressBar x:Name="CpuBar" Maximum="100"/>
             <UniformGrid Columns="4">
               <StackPanel><TextBlock Text="Frequency (est.)" Style="{StaticResource Label}"/><TextBlock x:Name="CpuFrequency" Text="—" Style="{StaticResource Detail}"/></StackPanel>
-              <StackPanel><TextBlock Text="Package power" Style="{StaticResource Label}"/><TextBlock x:Name="CpuPower" Text="—" Style="{StaticResource Detail}"/></StackPanel>
+              <StackPanel><TextBlock Text="Package power / limit" Style="{StaticResource Label}"/><TextBlock x:Name="CpuPower" Text="—" Style="{StaticResource Detail}"/></StackPanel>
               <StackPanel><TextBlock Text="CPU voltage" Style="{StaticResource Label}"/><TextBlock x:Name="CpuVoltage" Text="Unavailable" Style="{StaticResource Detail}"/></StackPanel>
               <StackPanel><TextBlock Text="Memory (GiB)" Style="{StaticResource Label}"/><TextBlock x:Name="Ram" Text="—" Style="{StaticResource Detail}"/></StackPanel>
             </UniformGrid>
@@ -230,7 +230,7 @@
             <ProgressBar x:Name="GpuBar" Foreground="#8EB8FF" Maximum="100"/>
             <UniformGrid Columns="4">
               <StackPanel><TextBlock Text="Core clock" Style="{StaticResource Label}"/><TextBlock x:Name="GpuFrequency" Text="—" Style="{StaticResource Detail}"/></StackPanel>
-              <StackPanel><TextBlock Text="Power / limit (W)" Style="{StaticResource Label}"/><TextBlock x:Name="Power" Text="—" Style="{StaticResource Detail}"/></StackPanel>
+              <StackPanel><TextBlock Text="Power / limit" Style="{StaticResource Label}"/><TextBlock x:Name="Power" Text="—" Style="{StaticResource Detail}"/></StackPanel>
               <StackPanel><TextBlock Text="Fan speed" Style="{StaticResource Label}"/><TextBlock x:Name="GpuFan" Text="—" Style="{StaticResource Detail}"/></StackPanel>
               <StackPanel><TextBlock Text="VRAM (GiB)" Style="{StaticResource Label}"/><TextBlock x:Name="Vram" Text="—" Style="{StaticResource Detail}"/></StackPanel>
             </UniformGrid>

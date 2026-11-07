@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-11-07 — Current power and active limits
+
+- Show CPU package power as `current / active PL1 W`, reusing the existing XTU
+  readback. Update the limit immediately after preset completion and on new samples.
+- Put GPU watts beside its `current / limit` values and remove the unit from the label.
+- Explain sustained PL1 and short boost PL2 in the CPU tooltip. Clear unavailable or
+  expired limits and preserve newer worker results against older samples.
+- Add mode-change, missing-data, stale-readback, and wide-value layout coverage.
+  All 404 automated checks passed, including 190 display checks; a read-only live
+  UI check confirmed both updated power fields. See [VERIFICATION.md](VERIFICATION.md).
+
 ## 2026-11-06 — Independent OC02
 
 - Add an OC02 button beside Off and OC01. It is selectable only with Performance

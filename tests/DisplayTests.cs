@@ -47,7 +47,7 @@ public static class DisplayTests
                 AdapterCount=1, AdapterNames=new[]{"Ethernet"}, Status="Connected", Detail="Physical adapter traffic · Includes LAN transfers" },
             Sensors = sensors, CpuTemperature = sensors[0], CpuTemperatureSelection = "Selected temperature source: awcc.temp.1",
             AwccStatus = "AWCC sensors connected", SampleMilliseconds = 12,
-            Preset = new PresetState { Cooling=160, Cpu=0, CpuReadable=true, PowerVerified=true, CanChange=true, CapturedAt=DateTime.UtcNow.ToString("o"), Detail="Fixture CPU readback verified" },
+            Preset = new PresetState { Cooling=160, Cpu=0, CpuReadable=true, PowerLimitWatts=180, ShortPowerLimitWatts=253, PowerVerified=true, CanChange=true, CapturedAt=DateTime.UtcNow.ToString("o"), Detail="Fixture CPU readback verified" },
             ThermalMode = new ThermalModeState { CurrentId = 160, CurrentName = "Balanced", CanChange = true,
                 Presets = new List<ThermalPreset> { new ThermalPreset { Id = 163, Name = "Quiet" },
                     new ThermalPreset { Id = 160, Name = "Balanced" }, new ThermalPreset { Id = 161, Name = "Performance" } } }
@@ -115,6 +115,28 @@ public static class DisplayTests
         Check(request.GetValue(deck)==null,"Stale programmatic clicks are rejected");
         Check(typeof(DeckWindow).GetField("samplingTask",Private).GetValue(deck)==null,"Fixture interaction never starts hardware collection");
     }
+    static void TestPowerLabels(DeckWindow deck,Window window)
+    {
+        var cpu=(TextBlock)window.FindName("CpuPower");var gpu=(TextBlock)window.FindName("Power");
+        var sample=Fixture();Call(deck,"Update",sample);
+        Check(cpu.Text=="83.6 / 180 W" && gpu.Text=="146 / 450 W","Both power readings show current / limit with inline watts");
+        Check(Convert.ToString(cpu.ToolTip).Contains("(PL1)") && Convert.ToString(cpu.ToolTip).Contains("(PL2): 253 W"),"Explain sustained versus short boost power limits");
+        sample=Fixture();sample.Preset.Cooling=163;sample.Preset.PowerLimitWatts=170;Call(deck,"Update",sample);
+        Check(cpu.Text=="83.6 / 170 W","A new Quiet snapshot updates the actual CPU limit");
+        var completed=new PresetState{Cooling=161,Cpu=1,CpuReadable=true,PowerLimitWatts=253,ShortPowerLimitWatts=253,PowerVerified=true,CanChange=true,CapturedAt=DateTime.UtcNow.ToString("o")};
+        Call(deck,"CompletePreset",new PresetResult{Success=true,Actual=completed,Message="Verified"});
+        Check(cpu.Text=="83.6 / 253 W","Completed switching updates the CPU limit before the next sample");
+        sample=Fixture();sample.Preset.CapturedAt=DateTime.UtcNow.AddSeconds(-1).ToString("o");Call(deck,"Update",sample);
+        Check(cpu.Text=="83.6 / 253 W","An older snapshot cannot revert the newly verified power limit");
+        sample=Fixture();sample.Preset.Cooling=161;sample.Preset.PowerLimitWatts=200;sample.Preset.PowerVerified=false;Call(deck,"Update",sample);
+        Check(cpu.Text=="83.6 / 200 W","Display the actual readback even when it differs from the audited mode policy");
+        sample=Fixture();sample.Preset.CpuReadable=false;Call(deck,"Update",sample);
+        Check(cpu.Text=="83.6 / — W","Unreadable CPU limits must not fall back to a guessed mode limit");
+        sample=Fixture();Call(deck,"Update",sample);sample.Preset.CapturedAt=DateTime.UtcNow.AddSeconds(-30).ToString("o");Call(deck,"UpdateStatus");
+        Check(cpu.Text=="83.6 / — W","Expired CPU readback clears the limit while other readings remain current");
+        sample=Fixture();sample.Cpu.PowerWatts=null;sample.Gpu.PowerLimitWatts=null;Call(deck,"Update",sample);
+        Check(cpu.Text=="— / 180 W" && gpu.Text=="146 / — W","Missing current power and missing limits are represented independently");
+    }
     static void Render(DeckWindow deck, Window window, string directory, double scale, bool fullscreen)
     {
         var surface = (ScrollViewer)window.Content;
@@ -131,6 +153,7 @@ public static class DisplayTests
         foreach (var id in new[] { "CpuLoad", "CpuTemp", "GpuLoad", "GpuTemp", "CpuFrequency", "CpuPower", "CpuVoltage", "Ram", "Vram", "Power", "GpuFrequency", "GpuFan", "Footer", "ModeCurrent", "DownloadChartCurrent", "UploadChartCurrent" }) {
             var text = (TextBlock)window.FindName(id);
             var measured = new TextBlock { Text = text.Text, FontFamily = text.FontFamily, FontSize = text.FontSize, FontWeight = text.FontWeight };
+            if(id=="CpuPower")measured.Text="499.9 / 253 W"; // Include a wide valid package-power reading.
             measured.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
             Check(text.ActualWidth + 1 >= measured.DesiredSize.Width, name + " clips " + id);
         }
@@ -196,6 +219,7 @@ public static class DisplayTests
             "Both history rows must shrink together");
         Check(((Canvas)window.FindName("GpuChart")).ActualHeight >= 90, "Adaptive charts must retain a readable plot");
         TestModeButtons(deck,window);
+        TestPowerLabels(deck,window);
         sample.CapturedAt=DateTime.UtcNow.ToString("o");Call(deck,"Update",sample);
         var selector = (ComboBox)window.FindName("Interval");
         selector.SelectedIndex = 2;

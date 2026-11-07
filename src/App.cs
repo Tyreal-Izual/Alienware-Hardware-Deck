@@ -196,7 +196,7 @@ namespace HardwareDeck
             if(latest!=null){
                 latest.Preset=result.Actual??new PresetState{CapturedAt=DateTime.UtcNow.ToString("o"),Detail=result.Message};
             }
-            Text("ModeNotice",result.Message);UpdateModeButtons();
+            Text("ModeNotice",result.Message);UpdateModeButtons();UpdateCpuPower();
         }
         void FitDashboard()
         {
@@ -237,9 +237,25 @@ namespace HardwareDeck
             Find<Button>("FullButton").Content=placement.IsFullscreen?"Exit fullscreen":"Fullscreen";
             appearance.Refresh();
         }
+        static string PowerDisplay(double? current,double? limit,string currentFormat)
+        {
+            return Display(current,"",currentFormat)+" / "+Display(limit,"","0.##")+" W";
+        }
+        void UpdateCpuPower()
+        {
+            var cpu=latest==null?null:latest.Cpu;
+            var preset=latest==null?null:latest.Preset;
+            bool readable=PresetFresh() && preset.CpuReadable;
+            double? limit=readable && preset.PowerLimitWatts>0?(double?)preset.PowerLimitWatts.Value:null;
+            Text("CpuPower",PowerDisplay(cpu==null?null:cpu.PowerWatts,limit,"0.0"));
+            Find<TextBlock>("CpuPower").ToolTip=(cpu==null?"CPU package power":cpu.PowerSource)+
+                "\nLimit: current sustained package power limit (PL1), read from Intel XTU"+
+                (readable && preset.ShortPowerLimitWatts>0?"\nShort boost limit (PL2): "+preset.ShortPowerLimitWatts.Value.ToString("0.##",CultureInfo.InvariantCulture)+" W":"")+
+                (limit.HasValue?"":"\nLimit unavailable: waiting for fresh CPU readback");
+        }
         void UpdateStatus()
         {
-            UpdateModeButtons();
+            UpdateModeButtons();UpdateCpuPower();
             if(collectionError!=null){
                 Text("LiveState", "COLLECTION STOPPED");
                 Find<Ellipse>("LiveDot").Fill = Brush("#E4B77A");
@@ -298,10 +314,8 @@ namespace HardwareDeck
             Text("CpuName",value.CpuName);
             var cpu=value.Cpu??new CpuTelemetry();
             Text("CpuFrequency",Display(cpu.FrequencyGHz," GHz","0.00"));
-            Text("CpuPower",Display(cpu.PowerWatts," W","0.0"));
             Text("CpuVoltage",cpu.VoltageVolts.HasValue?Display(cpu.VoltageVolts," V","0.000"):"Unavailable");
             Find<TextBlock>("CpuFrequency").ToolTip=cpu.FrequencySource;
-            Find<TextBlock>("CpuPower").ToolTip=cpu.PowerSource;
             Find<TextBlock>("CpuVoltage").ToolTip=cpu.VoltageSource;
             Text("CpuLoad",Display(value.CpuLoad," %","0"));
             Text("CpuTemp",Display(temp==null?null:temp.Value," °C","0"));
@@ -318,7 +332,7 @@ namespace HardwareDeck
             Find<ProgressBar>("GpuBar").Value=gpu.Load??0;
             Text("Ram",Display(value.MemoryUsedGiB,"","0.0")+" / "+Display(value.MemoryTotalGiB,"","0.0"));
             Text("Vram",Display(gpu.MemoryUsedMiB.HasValue?gpu.MemoryUsedMiB/1024:null,"","0.0")+" / "+Display(gpu.MemoryTotalMiB.HasValue?gpu.MemoryTotalMiB/1024:null,"","0.0"));
-            Text("Power",Display(gpu.PowerWatts,"","0")+" / "+Display(gpu.PowerLimitWatts,"","0"));
+            Text("Power",PowerDisplay(gpu.PowerWatts,gpu.PowerLimitWatts,"0"));
             Text("AwccState",value.AwccStatus);
             Find<TextBlock>("AwccState").Foreground=Brush(value.Sensors.Count>0?"#93A7B8":"#E4B77A");
             var fans=value.Sensors.Where(s=>s.Kind=="fan").ToList();

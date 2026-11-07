@@ -1,5 +1,28 @@
 # Validation scope
 
+## Power display follow-up (2026-11-07)
+
+The updated application builds and passes 190 display/scaling/refresh checks. New
+fixtures cover inline watt units, Quiet PL1 changes, immediate Performance completion
+updates, older-snapshot rejection, actual limits that differ from the audited policy,
+unreadable/expired limits, and independently unavailable power/limit values. The
+1080p layout is checked at 100%/125%/150%, including a wide `499.9 / 253 W` value;
+the 125% fullscreen render was visually inspected. These tests perform no hardware
+writes and reuse the existing verified limit-readback path.
+
+The local dashboard was normally closed, updated, and reopened with its saved
+window state. A read-only live UI check observed CPU `66.4 / 253 W` and GPU
+`68 / 450 W`, with CPU/cooling still verified. No hardware modes were changed.
+Evidence: `.local/power-display/deployment.txt`; the previous build is retained
+in `.local/before-power-display`.
+
+Final publication review (2026-11-07): all 404 automated checks passed: 51 sensor/
+configuration/voltage, 32 window state, 27 network, 49 preset policy/verification,
+26 lifecycle/readback, 190 display, and 29 clean-checkout packaging/worker-protocol
+checks. Reviewed the power formatting, fresh-limit handling, preset completion,
+and existing readback integration; no blocking defects were found. This review
+made no hardware-mode changes.
+
 ## Independent OC02 follow-up (2026-11-06)
 
 - 395 automated checks passed: 51 sensor/configuration/voltage, 32 window state,
