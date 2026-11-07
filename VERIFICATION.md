@@ -1,5 +1,32 @@
 # Validation scope
 
+## Source organization follow-up (2026-11-07)
+
+All 404 existing automated checks passed after source-file separation, shared
+compiler setup, centralized mode definitions, and C# formatting: 51 sensor/
+configuration/voltage, 32 window state, 27 network, 49 preset policy/verification,
+26 lifecycle/readback, 190 display, and 29 packaging/worker-protocol checks.
+The packaging checks build from a copied source tree, including the shared compiler
+script. Isolated icon regeneration uses that script and matches the tracked icon
+SHA-256 exactly.
+
+A parser-backed comparison of the original and reorganized production sources found
+504 of 520 existing member token streams unchanged. The other 16 were the two
+removed UI wrappers and 14 reviewed members that use the shared mode constants,
+simplified catalog construction, clearer naming, or expanded state-description
+control flow. Four shared mode fields were added. Formatting separately checked
+valid C# syntax and exact token/literal preservation before saving each file.
+Public snapshot fields, worker protocol, and hardware-control behavior are retained.
+No hardware-mode writes were performed for this structural cleanup.
+
+Final publication review repeated the build and all 404 checks under Windows
+PowerShell 5.1, matching the documented launcher commands and CI shell. Reviewed
+the 14 changed members, the removed wrappers, shared compiler arguments, new
+source discovery, and documentation links. No blocking defects were found.
+
+Local comparison evidence is in `.local/cleanup/member-audit.txt`; source ownership
+and build instructions are documented in [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Power display follow-up (2026-11-07)
 
 The updated application builds and passes 190 display/scaling/refresh checks. New

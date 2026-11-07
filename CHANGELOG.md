@@ -1,5 +1,20 @@
 # Changelog
 
+## 2026-11-07 — Standalone documentation and source organization
+
+- Present HardwareDeck as a standalone project. Focus the README on setup, daily
+  use, data sources, and compatibility; move the source map and development
+  workflow into [DEVELOPMENT.md](DEVELOPMENT.md).
+- Separate sampling, WMI access, snapshot data, preset backend, worker protocol,
+  and the application entry point into focused source files. Split dashboard
+  preset controls, charts, and sensor tiles into sections of one partial class.
+- Centralize standard cooling IDs, names, and order. Remove duplicate UI mode
+  mapping and request wrappers while preserving the existing control policy.
+- Share compiler references and source discovery across build/test scripts, so
+  new production files automatically participate in the core test build.
+- Normalize C# layout and add .editorconfig conventions. All 404 automated checks
+  pass; isolated icon regeneration produces the same icon bytes.
+
 ## 2026-11-07 — Current power and active limits
 
 - Show CPU package power as `current / active PL1 W`, reusing the existing XTU
