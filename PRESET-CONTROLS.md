@@ -1,5 +1,7 @@
 # Linked preset controls
 
+**English** | [简体中文](PRESET-CONTROLS.zh-CN.md)
+
 ## Acceptance status
 
 Live acceptance passed on 2026-11-06 for the audited Aurora R16 / i9-14900KF and

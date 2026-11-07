@@ -1,5 +1,15 @@
 # Changelog
 
+**English** | [简体中文](CHANGELOG.zh-CN.md)
+
+## 2026-11-07 — Bilingual documentation
+
+- Keep English as the default and add Simplified Chinese counterparts for all eight
+  Markdown guides, including the README, development, validation, and AWCC references.
+- Add language switches to each document and keep cross-document navigation in the
+  selected language. Preserve commands, identifiers, and upstream license text.
+- Document how to keep both language versions synchronized.
+
 ## 2026-11-07 — Standalone documentation and source organization
 
 - Present HardwareDeck as a standalone project. Focus the README on setup, daily

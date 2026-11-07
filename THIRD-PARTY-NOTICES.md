@@ -1,5 +1,7 @@
 # AlienFX Tools protocol mapping
 
+**English** | [简体中文](THIRD-PARTY-NOTICES.zh-CN.md)
+
 The AWCC information-command mapping and sensor enumeration were adapted from
 T-Troll/alienfx-tools, alienfan-SDK_v2. Read-only sampling implements Thermal_Information subcommands 3, 4, 5, 9 and 11,
 and GetFanSensors subcommand 2, in C#. Explicit user-initiated standard-mode

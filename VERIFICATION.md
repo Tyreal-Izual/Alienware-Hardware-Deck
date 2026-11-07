@@ -1,5 +1,21 @@
 # Validation scope
 
+**English** | [简体中文](VERIFICATION.zh-CN.md)
+
+## Documentation language follow-up (2026-11-07)
+
+English remains the default documentation entry point, with matching Simplified
+Chinese versions for all eight Markdown guides. Each pair provides reciprocal
+language links, and Chinese cross-document links stay within the Chinese versions.
+
+Documentation validation covers local link targets, language navigation, matching
+heading structure, unchanged command/configuration code blocks, matching inline
+technical identifiers and numeric literals, and the original MIT notice text.
+This update changes Markdown documentation only.
+
+Publication review verified 8 document pairs, 16 language links, 130 local links,
+96 table rows, and 3 matching code-block pairs. No unresolved discrepancies were found.
+
 ## Source organization follow-up (2026-11-07)
 
 All 404 existing automated checks passed after source-file separation, shared

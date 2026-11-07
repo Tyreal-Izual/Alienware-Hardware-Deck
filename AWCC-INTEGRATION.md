@@ -1,5 +1,7 @@
 # AWCC integration architecture
 
+**English** | [简体中文](AWCC-INTEGRATION.zh-CN.md)
+
 Validated against locally installed AWCC 6.14.105.0 on an Aurora R16 / i9-14900KF.
 Current controls and acceptance are in [PRESET-CONTROLS.md](PRESET-CONTROLS.md);
 the OEM profile comparison is in [AWCC-LOCAL-PROFILES.md](AWCC-LOCAL-PROFILES.md).

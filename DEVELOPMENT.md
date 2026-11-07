@@ -1,5 +1,7 @@
 # Development
 
+**English** | [简体中文](DEVELOPMENT.zh-CN.md)
+
 HardwareDeck is a single Windows .NET Framework 4.8 executable with a runtime-loaded
 WPF view. Building requires the Windows Framework C# compiler; no NuGet restore or
 .NET SDK is needed. It is developed and released as a standalone repository.
@@ -102,3 +104,12 @@ The icon source is [assets/HardwareDeck.svg](assets/HardwareDeck.svg). Regenerat
 Executables, local sensor labels, inspection output, and test artifacts are Git-ignored.
 Use `.local` for development output. User window preferences and startup errors live
 under `%LOCALAPPDATA%\HardwareDeck`; normal monitoring does not periodically dump data.
+
+## Documentation languages
+
+English files (`*.md`) are the default entry points. Each has a matching Simplified
+Chinese file (`*.zh-CN.md`) and a language switch below the title. When changing a
+document, update both versions: preserve section coverage, commands, identifiers,
+configuration examples, dates, and validation limits. Chinese document links should
+point to Chinese counterparts; source and external links keep their original targets.
+Keep upstream license notices in their original wording.

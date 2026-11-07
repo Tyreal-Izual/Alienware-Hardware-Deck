@@ -1,5 +1,7 @@
 # HardwareDeck
 
+**English** | [简体中文](README.zh-CN.md)
+
 A standalone native Windows hardware dashboard for the Alienware Aurora R16,
 made for an always-visible secondary display such as a 1920 × 1080 22N1.
 

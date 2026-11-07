@@ -1,5 +1,7 @@
 # Local AWCC modes and OEM OC profiles
 
+**English** | [简体中文](AWCC-LOCAL-PROFILES.zh-CN.md)
+
 > Follow-up, 2026-11-06: OC02 has now been activated and verified through the original
 > AWCC Custom CPU editor. The live worker confirmed both E-core target groups at 45,
 > P-core/voltage/current targets, Performance cooling, and 253/253 W power limits.
