@@ -1,18 +1,15 @@
-param([switch]$Sensors,[switch]$CheckOnly,[switch]$Rebuild)
-$ErrorActionPreference='Stop'
-$root=Split-Path -Parent $PSScriptRoot
-$target=Join-Path $root 'HardwareDeck.exe'
-$buildRequired=$Rebuild -or -not (Test-Path -LiteralPath $target -PathType Leaf)
-if($CheckOnly){
-    [pscustomobject]@{BuildRequired=$buildRequired;Target=$target}|ConvertTo-Json
-    exit 0
-}
+param([switch]$Sensors, [switch]$Basic, [switch]$CheckOnly, [switch]$Rebuild)
+$ErrorActionPreference = 'Stop'
+$root = Split-Path -Parent $PSScriptRoot
 try {
-    if($buildRequired){& (Join-Path $root 'Build.ps1')}
-    if($Sensors){Start-Process -FilePath $target -WorkingDirectory $root -Verb RunAs}
-    else{Start-Process -FilePath $target -WorkingDirectory $root}
+    . (Join-Path $PSScriptRoot 'StartupTask.ps1')
+    $result = Invoke-DeckLaunch -Root $root -Basic:$Basic -CheckOnly:$CheckOnly -Rebuild:$Rebuild
+    if ($CheckOnly) { $result | ConvertTo-Json -Depth 5 }
 } catch {
-    Add-Type -AssemblyName PresentationFramework
-    [void][Windows.MessageBox]::Show($_.Exception.Message,'HardwareDeck')
+    if ($CheckOnly) { Write-Error $_ }
+    else {
+        Add-Type -AssemblyName PresentationFramework
+        [void][Windows.MessageBox]::Show($_.Exception.Message, 'HardwareDeck startup')
+    }
     exit 1
 }

@@ -14,6 +14,7 @@ Run from the repository root:
 powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1 -OutputPath .local/build/HardwareDeck.exe
 powershell -NoProfile -ExecutionPolicy Bypass -File Test.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Packaging.Tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Startup.Tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1
 ```
 
@@ -104,6 +105,20 @@ The icon source is [assets/HardwareDeck.svg](assets/HardwareDeck.svg). Regenerat
 Executables, local sensor labels, inspection output, and test artifacts are Git-ignored.
 Use `.local` for development output. User window preferences and startup errors live
 under `%LOCALAPPDATA%\HardwareDeck`; normal monitoring does not periodically dump data.
+
+## Managed startup
+
+Daily launch uses the protected task installation described in [STARTUP.md](STARTUP.md).
+`scripts/StartupTask.ps1` defines the fixed task contract, validation, and launcher
+routing; `scripts/Manage-Startup.ps1` owns the elevated setup/repair/removal operations.
+`DashboardInstance.cs` guards normal GUI instances by user and session, without
+blocking probes, previews, or preset workers. The manifest stays `asInvoker`.
+
+A checkout update does not replace the privileged installed copy automatically.
+Use `Manage-HardwareDeck.cmd Repair` from a normal terminal to stage a new build and
+approve its installation. The same step deploys changes to local sensor labels.
+The startup scripts import OS modules from their own PowerShell runtime so shortcuts
+also work when a PowerShell 7 parent passes a different module search path.
 
 ## Documentation languages
 

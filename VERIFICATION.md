@@ -2,6 +2,56 @@
 
 **English** | [简体中文](VERIFICATION.zh-CN.md)
 
+## Elevated startup follow-up (2026-11-10)
+
+The startup contract has 56 offline checks for the fixed action, account/logon/run
+level, on-demand/duplicate settings, file/task ACLs, missing/invalid task decisions,
+canceled UAC, and basic-mode compatibility. Five C# instance checks cover ownership,
+duplicates, release, user/session naming, and elevation handoff. These tests do not
+register tasks or change hardware modes.
+
+Live setup used the current administrator account and a protected Program Files copy.
+The first attempt exposed a case-insensitive Action variable collision; it registered
+no task. The corrected setup passed. Shortcut validation then exposed inherited
+PowerShell module-path incompatibility; explicit runtime module imports fixed it and
+an authorized repair deployed the fix. Both failures have regression checks.
+
+The actual desktop shortcut subsequently passed cold launch and repeat launch without
+another UAC prompt. The compatibility Sensors entry also kept the same single process.
+Read-only scheduler checks reported Healthy with InteractiveToken/HighestAvailable,
+the exact fixed EXE, empty arguments, protected files, and restricted task permissions.
+Window preferences were byte-identical before and after setup/relaunch. The restored
+fullscreen UI showed Sensors enabled, live AWCC RPM/temperature, CPU voltage, and PL1.
+CPU preset readback remained independent/unknown rather than claiming an OEM preset;
+no OC/cooling buttons or hardware-mode setters were invoked in this acceptance.
+
+Cancellation and invalid/disabled-task cases were tested offline; the working task
+was left installed. Setup, repair, checking, and desktop/script launches were exercised
+on the machine. Uninstall is scoped in code to the recognized current-user task and
+managed shortcut; it retains application files and window preferences.
+Evidence: `.local/startup/acceptance.json` and `.local/startup/shortcut-context.json`.
+See [STARTUP.md](STARTUP.md) for maintenance and direct-EXE behavior.
+
+Final regression checks passed: 465 total (51 sensor/configuration/voltage, 32
+window state, 27 network, 49 preset policy, 26 lifecycle/readback, 5 GUI-instance,
+56 startup-task, 29 packaging, and 190 display checks). The installed bundle hashes
+matched the reviewed staging/source files. A direct basic EXE was also successfully
+handed over to the managed task without UAC or a second window; evidence is in
+`.local/startup/basic-handoff.json`.
+
+Publication review added coverage for wrapped UAC cancellation, exact shortcut
+ownership, and read-only repair preflight. The existing task is disabled only
+after the background-operation preflight passes. Customized or unrelated
+same-name shortcuts are preserved.
+
+The reviewed launcher was deployed through the explicit repair/UAC flow. Installed
+bundle hashes matched the reviewed source/staging files. A subsequent normal close
+and desktop-shortcut cold launch preserved the current window-preference file
+byte-for-byte; duplicate desktop/script launches kept one process. The current
+preference was maximized rather than fullscreen, so this review used a fresh baseline
+instead of overwriting it with the earlier installation snapshot. Evidence:
+`.local/startup-review/deployment.json`.
+
 ## Documentation language follow-up (2026-11-07)
 
 English remains the default documentation entry point, with matching Simplified

@@ -2,6 +2,24 @@
 
 **English** | [简体中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-10 — Authorized elevated startup
+
+- Make daily launch use a dedicated highest-privilege, current-user interactive task
+  after one-time UAC configuration. Add a desktop shortcut and task check/repair/removal.
+- Pin the task to a protected per-user installation under Program Files, with no
+  arbitrary arguments, shell action, stored password, or automatic logon trigger.
+- Keep the manifest asInvoker for direct EXE, test, and diagnostic behavior. Add a
+  session-local GUI instance guard and preserve window-state/elevation handoff.
+- Stage builds before elevation, retain existing window and sensor preferences, and
+  require explicit UAC repair/update for the protected copy.
+- Cover canceled setup, altered/disabled task definitions, unsafe permissions, and
+  duplicate launches. Fix action-variable shadowing and inherited module-path issues
+  found during real setup/shortcut validation.
+
+- Tighten maintenance boundaries: recognize wrapped UAC cancellation, preflight
+  background work before disabling the task, and preserve customized/unrelated
+  shortcuts. All 465 automated checks pass.
+
 ## 2026-11-07 — Bilingual documentation
 
 - Keep English as the default and add Simplified Chinese counterparts for all eight

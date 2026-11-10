@@ -19,10 +19,10 @@ try {
     }
     $launcher=Join-Path $workspace 'scripts\Launch.ps1'
     $target=Join-Path $workspace 'HardwareDeck.exe'
-    $before=& $launcher -CheckOnly | ConvertFrom-Json
+    $before=& $launcher -Basic -CheckOnly | ConvertFrom-Json
     Assert-True $before.BuildRequired 'A fresh checkout must report that a build is required.'
 
-    & $launcher
+    & $launcher -Basic
     Assert-True (Test-Path -LiteralPath $target) 'First launch must build the executable.'
     Assert-True ($global:HardwareDeckPackagingLaunch.File -eq $target) 'Launcher must target the checkout executable.'
     Assert-True ([string]::IsNullOrEmpty($global:HardwareDeckPackagingLaunch.Verb)) 'Normal launch must not request elevation.'
@@ -32,8 +32,8 @@ try {
     New-Item -ItemType Directory -Path $pending -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $pending 'HardwareDeck.exe'),'obsolete development artifact')
     $hash=(Get-FileHash -LiteralPath $target).Hash
-    & $launcher -Sensors
-    Assert-True ($global:HardwareDeckPackagingLaunch.Verb -eq 'RunAs') 'Sensor launch must explicitly request elevation.'
+    & $launcher -Basic
+    Assert-True ([string]::IsNullOrEmpty($global:HardwareDeckPackagingLaunch.Verb)) 'Basic launch must never request elevation.'
     Assert-True ((Get-FileHash -LiteralPath $target).Hash -eq $hash) 'Old pending binaries must never replace a fresh build.'
 
     $bundle=Join-Path $workspace 'portable bundle\HardwareDeck.exe'
@@ -44,7 +44,7 @@ try {
     $config=Join-Path $workspace 'sensor-labels.json'
     [IO.File]::WriteAllText($config,'{"cpuTemperatureSensor":"awcc.temp.5","labels":{}}')
     $configHash=(Get-FileHash -LiteralPath $config).Hash
-    & $launcher -Rebuild
+    & $launcher -Basic -Rebuild
     Assert-True ((Get-FileHash -LiteralPath $config).Hash -eq $configHash) 'Rebuild must preserve local sensor preferences.'
 
     foreach($arguments in @('--unknown','--test-modes ignored.json')){

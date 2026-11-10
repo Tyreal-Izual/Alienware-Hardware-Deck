@@ -23,13 +23,19 @@ are required. Full preset control is validated on the Aurora R16 with an i9-1490
 RTX 4090, and AWCC 6.14.105.0. Other hardware or AWCC versions may have unavailable
 readings or disabled controls; see [validation scope](VERIFICATION.md).
 
-1. Run **Start-HardwareDeck.cmd** for standard-permission monitoring. The first launch
-   builds the application if its executable is missing.
-2. Run **Start-With-Sensors.cmd**, or select **Enable sensors** in the header, for AWCC
-   temperatures, fan RPM, CPU voltage, CPU power-limit readback, and preset controls.
-   Windows requests administrator confirmation.
-3. Close the window to stop sampling. After updating source files, close the app and
-   rebuild with `powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1`.
+1. Run **Start-HardwareDeck.cmd** from your normal Windows login. First use builds
+   a staged package and requests one UAC approval to configure a dedicated task.
+2. After setup, use that script, **Start-With-Sensors.cmd**, or the **HardwareDeck**
+   desktop shortcut. Sensors are enabled immediately without repeated UAC prompts.
+   The task uses the same account and runs only in its logged-on interactive session.
+3. Use **Manage-HardwareDeck.cmd Check / Repair / Uninstall** to inspect, update, or
+   remove this setup. Repair/update and removal require administrator confirmation.
+
+The task starts a fixed, protected copy under `%ProgramFiles%\HardwareDeck\<SID>`.
+Source updates and sensor-label edits require **Repair** to refresh that copy.
+Direct EXE launches still inherit their caller's permissions; the manifest remains
+`asInvoker` for tests and diagnostics. See [elevated startup](STARTUP.md) for the full
+contract, cancellation handling, and explicit basic-mode launch.
 
 ## Display and window settings
 
@@ -106,7 +112,8 @@ The first build creates a local, Git-ignored `sensor-labels.json` from
 }
 ```
 
-Restart after editing this file. A missing selected ID is never silently replaced.
+Use **Manage-HardwareDeck.cmd Repair** after editing this file to update the protected
+copy. Explicit basic-mode launches read the checkout copy after a restart. A missing selected ID is never silently replaced.
 Setting the ID to null uses legacy first-sensor selection with an unconfirmed CPU
 identity; legacy flat label maps are also supported.
 
@@ -114,6 +121,7 @@ identity; legacy flat label maps are also supported.
 
 | Document | Contents |
 | --- | --- |
+| [Elevated startup](STARTUP.md) | One-time setup, daily launch, checks, repair, and removal |
 | [Development guide](DEVELOPMENT.md) | Build/test commands, source map, and execution paths |
 | [Preset controls](PRESET-CONTROLS.md) | Mode combinations, guards, and readback rules |
 | [Validation](VERIFICATION.md) | Automated and live checks, with their limits |

@@ -177,6 +177,7 @@ public static class SensorTests
         NetworkTests.Run();
         PresetTests.Run();
         PresetLifecycleTests.Run();
+        StartupInstanceTests.Run();
         return 0;
     }
 }

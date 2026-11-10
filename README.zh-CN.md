@@ -23,12 +23,17 @@ HardwareDeck 不需要云账号，不提供上传服务，也不会自动安装�
 其他硬件或 AWCC 版本可能出现读数不可用或控制按钮禁用的情况，
 具体见[验证范围](VERIFICATION.zh-CN.md)。
 
-1. 运行 **Start-HardwareDeck.cmd**，以普通权限启动监控。首次启动时，如果没有可执行文件，
-   会先从源码构建。
-2. 运行 **Start-With-Sensors.cmd**，或点击顶部的 **Enable sensors**，启用 AWCC 温度、
-   风扇转速、CPU 电压、CPU 功耗上限读回和预设控制。Windows 会请求管理员确认。
-3. 关闭窗口即可停止采样。更新源码后，先关闭程序，再运行
-   `powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1` 重新构建。
+1. 在正常 Windows 登录状态下运行 **Start-HardwareDeck.cmd**。
+   首次使用会构建暂存包，并请求一次 UAC 确认来配置专用任务。
+2. 配置完成后，使用该脚本、**Start-With-Sensors.cmd** 或 **HardwareDeck** 桌面快捷方式。
+   传感器会直接启用，不再重复弹 UAC。任务使用同一账号，仅在其已登录的交互会话中运行。
+3. 使用 **Manage-HardwareDeck.cmd Check / Repair / Uninstall** 检查、更新或移除此配置。
+   修复／更新和卸载仍需要管理员确认。
+
+任务启动 `%ProgramFiles%\HardwareDeck\<SID>` 下的固定受保护副本。
+源码更新和传感器标签修改需要通过 **Repair** 更新该副本。
+直接运行 EXE 仍继承启动者权限；为保留测试和诊断入口，manifest 保持 `asInvoker`。
+完整约定、取消授权处理和显式普通模式启动见[管理员启动说明](STARTUP.zh-CN.md)。
 
 ## 显示与窗口设置
 
@@ -104,7 +109,8 @@ CPU 上限是当前持续封装功耗上限 PL1，会随模式变化更新。
 }
 ```
 
-编辑后请重启程序。指定的传感器 ID 缺失时，不会静默换用其他传感器。
+编辑后使用 **Manage-HardwareDeck.cmd Repair** 更新受保护副本。
+显式普通模式启动会在重启后读取源码目录中的副本。指定的传感器 ID 缺失时，不会静默换用其他传感器。
 将 ID 设为 null 会启用旧版的首个传感器选择方式，并标明 CPU 身份未经确认；
 旧版扁平标签映射仍受支持。
 
@@ -112,6 +118,7 @@ CPU 上限是当前持续封装功耗上限 PL1，会随模式变化更新。
 
 | 文档 | 内容 |
 | --- | --- |
+| [管理员启动](STARTUP.zh-CN.md) | 一次配置、日常启动、检查、修复和卸载 |
 | [开发指南](DEVELOPMENT.zh-CN.md) | 构建／测试命令、源码结构与执行路径 |
 | [预设控制](PRESET-CONTROLS.zh-CN.md) | 模式组合、保护与读回规则 |
 | [验证记录](VERIFICATION.zh-CN.md) | 自动化和实机检查及其限制 |

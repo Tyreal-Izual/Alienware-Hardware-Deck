@@ -14,6 +14,7 @@ HardwareDeck 是一个 Windows .NET Framework 4.8 可执行程序，运行时加
 powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1 -OutputPath .local/build/HardwareDeck.exe
 powershell -NoProfile -ExecutionPolicy Bypass -File Test.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Packaging.Tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Startup.Tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1
 ```
 
@@ -100,6 +101,20 @@ C# 使用四空格缩进、展开的控制流，以及单独占行的大括号�
 开发输出放在 `.local`。
 用户窗口偏好与启动错误位于 `%LOCALAPPDATA%\HardwareDeck`；
 正常监控不会定期导出数据。
+
+## 受管理的启动
+
+日常启动使用 [STARTUP.md](STARTUP.zh-CN.md) 中说明的受保护任务安装。
+`scripts/StartupTask.ps1` 定义固定任务契约、校验和启动路由；
+`scripts/Manage-Startup.ps1` 负责管理员配置、修复和卸载。
+`DashboardInstance.cs` 按用户与会话保护普通 GUI 单实例，
+不阻止诊断、预览和预设 worker。Manifest 保持 `asInvoker`。
+
+源码更新不会自动替换特权安装副本。
+在普通终端使用 `Manage-HardwareDeck.cmd Repair` 暂存新构建并批准安装；
+本地传感器标签修改也通过该步骤部署。
+启动脚本从自身 PowerShell 运行时导入系统模块，
+因此从 PowerShell 7 父进程继承不同模块搜索路径时，快捷方式仍能工作。
 
 ## 文档语言
 

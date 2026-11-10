@@ -36,7 +36,17 @@ namespace HardwareDeck
                     return 0;
                 }
 
-                new DeckWindow(root, preview ? args[1] : null, preview && args.Length == 3).Run();
+                if (preview)
+                    new DeckWindow(root, args[1], args.Length == 3).Run();
+                else
+                {
+                    // Allow the ordinary window to finish closing after its RunAs handoff.
+                    using (var instance = new DashboardInstance(DashboardInstance.Name, 5000))
+                    {
+                        if (!instance.Acquired) return 0;
+                        new DeckWindow(root, null, false).Run();
+                    }
+                }
                 return 0;
             }
             catch (Exception ex)
