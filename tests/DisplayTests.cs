@@ -119,6 +119,54 @@ public static class DisplayTests
         };
     }
 
+    static Snapshot FirmwareFixture()
+    {
+        var sample = Fixture();
+        sample.Preset.Cpu = null;
+        sample.Preset.FirmwareStartup = true;
+        sample.Preset.Detail = "Firmware / Startup state · Matches the observed R16 startup CPU settings · Cooling power limits verified";
+        return sample;
+    }
+
+    static void TestFirmwareState(DeckWindow deck, Window window)
+    {
+        var stateLabel = (TextBlock)window.FindName("ModeCurrent");
+        var request = typeof(DeckWindow).GetField("pendingRequest", Private);
+        var sample = FirmwareFixture();
+        Call(deck, "Update", sample);
+        Check(stateLabel.Text == "Firmware / Startup state", "Confirmed startup state has its own neutral label");
+        Check(new[] { "ModeQuiet", "ModeBalanced", "ModePerformance", "CpuOff", "CpuOC01", "CpuOC02" }
+            .All(name => ((Button)window.FindName(name)).Tag == null), "Firmware must not highlight an OEM CPU or linked preset");
+        Check((string)((Button)window.FindName("CoolingBalanced")).Tag == "Current", "Actual cooling remains highlighted");
+        Check(!((Button)window.FindName("CpuOC01")).IsEnabled && !((Button)window.FindName("CpuOC02")).IsEnabled &&
+            !((Button)window.FindName("CoolingPerformance")).IsEnabled, "Firmware status preserves independent OC/cooling interlocks");
+        Check(request.GetValue(deck) == null && typeof(DeckWindow).GetField("samplingTask", Private).GetValue(deck) == null,
+            "Recognizing startup state queues no hardware operation");
+        ((Button)window.FindName("ModeBalanced")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(((PresetRequest)request.GetValue(deck)).Kind == "preset", "Manual Balanced still queues a complete preset request");
+        Call(deck, "CompletePreset", new PresetResult { Success = false, Message = "Not verified: CPU target unchanged", Actual = sample.Preset });
+        Check(stateLabel.Text == "Firmware / Startup state" && ((TextBlock)window.FindName("ModeNotice")).Text.StartsWith("Not verified:"),
+            "A firmware label cannot hide a failed explicit preset request");
+        sample = FirmwareFixture();
+        sample.Preset.PowerVerified = false;
+        Call(deck, "Update", sample);
+        Check(stateLabel.Text == "Unverified", "A power mismatch takes precedence over the firmware marker");
+        sample = FirmwareFixture();
+        Call(deck, "Update", sample);
+        typeof(DeckWindow).GetField("lastUpdate", Private).SetValue(deck, DateTime.UtcNow.AddSeconds(-30));
+        Call(deck, "UpdateStatus");
+        Check(stateLabel.Text == "Unverified", "Stale firmware readback cannot retain the startup label");
+        sample = Fixture();
+        Call(deck, "CompletePreset", new PresetResult { Success = true, Message = "Verified Off", Actual = sample.Preset });
+        Call(deck, "Update", sample);
+        Check(stateLabel.Text == "Linked" && (string)((Button)window.FindName("CpuOff")).Tag == "Current",
+            "Verified manual preset completion replaces firmware classification");
+        sample = Fixture();
+        sample.Preset.Cpu = null;
+        Call(deck, "Update", sample);
+        Check(stateLabel.Text != "Firmware / Startup state", "Other unknown/custom settings must not be labeled firmware startup");
+    }
+
     static void Layout(FrameworkElement surface, double width, double height)
     {
         for (int pass = 0; pass < 3; pass++)
@@ -359,7 +407,7 @@ public static class DisplayTests
         var window = (Window)typeof(DeckWindow).GetField("window", Private).GetValue(deck);
         Check((int)typeof(DeckWindow).GetField("interval", Private).GetValue(deck) == 1000, "Default sampling must be one second");
         Check(((ComboBox)window.FindName("Interval")).SelectedIndex == 0, "Refresh selector must match sampling");
-        var sample = Fixture();
+        var sample = FirmwareFixture();
         var history = (List<HistoryPoint>)typeof(DeckWindow).GetField("history", Private).GetValue(deck);
         var now = DateTime.UtcNow;
         for (int i = 119; i > 0; i--)
@@ -389,6 +437,7 @@ public static class DisplayTests
         Check(((Grid)window.FindName("HistoryPanel")).ActualHeight == ((Grid)window.FindName("NetworkHistoryPanel")).ActualHeight, "Both history rows must shrink together");
         Check(((Canvas)window.FindName("GpuChart")).ActualHeight >= 90, "Adaptive charts must retain a readable plot");
         TestModeButtons(deck, window);
+        TestFirmwareState(deck, window);
         TestPowerLabels(deck, window);
         sample.CapturedAt = DateTime.UtcNow.ToString("o");
         Call(deck, "Update", sample);

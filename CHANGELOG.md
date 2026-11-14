@@ -2,6 +2,13 @@
 
 **English** | [简体中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-14 — Recognized firmware startup state
+
+- Display the exact audited boot fingerprint as **Firmware / Startup state**, without
+  treating it as an OEM preset or applying CPU settings automatically.
+- Retain strict OC/cooling guards and explicit switch-failure reporting. Add captured
+  readback, per-control mismatch, transition, and 1080p layout regressions.
+
 ## 2026-11-10 — Authorized elevated startup
 
 - Make daily launch use a dedicated highest-privilege, current-user interactive task

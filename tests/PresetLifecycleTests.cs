@@ -94,8 +94,60 @@ public static class PresetLifecycleTests
         };
     }
 
+    internal static List<XtuControlValue> StartupValues()
+    {
+        using (var stream = typeof(PresetLifecycleTests).Assembly.GetManifestResourceStream("HardwareDeck.Tests.FirmwareStartup.json"))
+        using (var reader = new StreamReader(stream))
+            return new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<List<XtuControlValue>>(reader.ReadToEnd());
+    }
+
+    static void TestFirmwareStartup()
+    {
+        var tuning = new Tuning { Values = StartupValues() };
+        using (var reader = new CpuPresetReader(() => tuning, () => DateTime.UtcNow, true,
+            Profile(false), Profile(true), new OemCpuProfile { Ratio = 61, Ecore = 45, Current = 316, Power = 253, ShortPower = 253 }))
+        {
+            var boot = reader.Read(true);
+            Check(boot.Readable && boot.Level == null && boot.FirmwareStartup,
+                "Captured startup targets have a separate identity, never OEM Off/OC01/OC02");
+            Check(boot.CheckedValues.Count == 53 && boot.PowerLimitWatts == 180 && boot.ShortPowerLimitWatts == 253,
+                "Startup classification retains the complete measured control set and power limits");
+            foreach (var value in tuning.Values)
+            {
+                decimal original = value.ActiveValue;
+                value.ActiveValue++;
+                var changed = reader.Read(true);
+                Check(!changed.FirmwareStartup && changed.Level == null,
+                    "An altered startup control must remain unclassified: " + value.Id);
+                value.ActiveValue = original;
+            }
+            tuning.Values.RemoveAt(0);
+            var missing = reader.Read(true);
+            Check(!missing.FirmwareStartup && !missing.Readable,
+                "Missing startup controls cannot be treated as firmware defaults");
+            tuning.Values = StartupValues();
+            var thermal = new ThermalModeState { CurrentId = 160, CanChange = true };
+            var state = PresetStateFactory.Create(reader.Read(true), thermal);
+            Check(state.FirmwareStartup && state.Cpu == null && state.LinkedPreset == null,
+                "The combined state preserves firmware identity without a linked preset");
+            thermal.CurrentId = 163;
+            state = PresetStateFactory.Create(reader.Read(true), thermal);
+            Check(!state.FirmwareStartup && !state.PowerVerified,
+                "Firmware recognition cannot hide a cooling/power mismatch");
+            tuning.Values = ValuesFor(false, 180);
+            var off = reader.Read(true);
+            Check(off.Level == 0 && !off.FirmwareStartup, "A subsequently applied OEM Off clears firmware status");
+            tuning.Values = StartupValues();
+            reader.Read(true);
+            tuning.Fail = true;
+            var failed = reader.Read(true);
+            Check(!failed.Readable && !failed.FirmwareStartup, "Read failure clears any earlier firmware classification");
+        }
+    }
+
     public static void Run()
     {
+        TestFirmwareStartup();
         Check(PresetWorker.ReadInput(new StringReader("{}\r\nignored")) == "{}", "Worker reads one Windows-terminated request");
         Check(PresetWorker.ReadInput(new StringReader(new string ('x', 4096) + "\r\n")).Length == 4096, "A 4096-character request fits with CRLF");
         Check(PresetWorker.ReadInput(new StringReader(new string ('x', 4097))) == null, "Oversized worker input is bounded before deserialization");

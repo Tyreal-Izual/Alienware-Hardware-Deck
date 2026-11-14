@@ -353,7 +353,9 @@ namespace HardwareDeck
             DateTime previousPresetTime, incomingPresetTime;
             if (latest != null && latest.Preset != null && value.Preset != null && DateTime.TryParse(latest.Preset.CapturedAt, null, DateTimeStyles.RoundtripKind, out previousPresetTime) && DateTime.TryParse(value.Preset.CapturedAt, null, DateTimeStyles.RoundtripKind, out incomingPresetTime) && incomingPresetTime < previousPresetTime)
                 value.Preset = latest.Preset;
-            if (!modeBusy && latest != null && latest.Preset != null && value.Preset != null && (latest.Preset.Cpu != value.Preset.Cpu || latest.Preset.Cooling != value.Preset.Cooling))
+            if (!modeBusy && latest != null && latest.Preset != null && value.Preset != null &&
+                (latest.Preset.Cpu != value.Preset.Cpu || latest.Preset.Cooling != value.Preset.Cooling ||
+                 latest.Preset.FirmwareStartup != value.Preset.FirmwareStartup))
                 presetNotice = null;
             latest = value;
             collectionError = null;

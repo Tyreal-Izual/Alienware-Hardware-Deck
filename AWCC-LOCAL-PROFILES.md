@@ -2,6 +2,10 @@
 
 **English** | [简体中文](AWCC-LOCAL-PROFILES.zh-CN.md)
 
+> Follow-up, 2026-11-14: boot targets differ from an applied OEM Off profile.
+> The separate Firmware / Startup state classification is documented in
+> [preset controls](PRESET-CONTROLS.md); evidence is in [validation](VERIFICATION.md).
+
 > Follow-up, 2026-11-06: OC02 has now been activated and verified through the original
 > AWCC Custom CPU editor. The live worker confirmed both E-core target groups at 45,
 > P-core/voltage/current targets, Performance cooling, and 253/253 W power limits.

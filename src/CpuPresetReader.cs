@@ -35,6 +35,7 @@ namespace HardwareDeck
     {
         public int? Level { get; set; }
         public bool Readable { get; set; }
+        public bool FirmwareStartup { get; set; }
         public string Detail { get; set; }
         public string CapturedAt { get; set; }
         public decimal? PowerLimitWatts { get; set; }
@@ -85,6 +86,40 @@ namespace HardwareDeck
                 96,
                 97
             }.All(id => values[id] == 57);
+        }
+    }
+
+    internal static class FirmwareStartupProfile
+    {
+        // Exact 53-control fingerprint observed after boot on the audited R16/14900KF.
+        // This is a display classification, never an OEM OC level or a write target.
+        static readonly Dictionary<uint, decimal> expected = CreateExpected();
+
+        static Dictionary<uint, decimal> CreateExpected()
+        {
+            var values = new Dictionary<uint, decimal>
+            {
+                { 29, 60 }, { 30, 60 }, { 31, 57 }, { 32, 57 }, { 34, 0 },
+                { 42, 57 }, { 43, 57 }, { 47, 253 }, { 48, 180 }, { 88, 0 },
+                { 96, 57 }, { 97, 57 }, { 102, 316 }
+            };
+            for (uint id = 116; id <= 123; id++)
+                values[id] = id == 120 || id == 121 ? 61 : 58;
+            for (uint id = 1500; id <= 1515; id++)
+            {
+                values[id] = 44;
+                values[id + 3000] = 44;
+            }
+            return values;
+        }
+
+        internal static bool Matches(IDictionary<uint, decimal> values)
+        {
+            return values != null && values.Count == expected.Count && expected.All(pair =>
+            {
+                decimal actual;
+                return values.TryGetValue(pair.Key, out actual) && actual == pair.Value;
+            });
         }
     }
 
@@ -218,13 +253,19 @@ namespace HardwareDeck
                 result.ShortPowerLimitWatts = values[47];
                 result.Readable = true;
                 result.Level = off.Matches(values) ? (int?)0 : on.Matches(values) ? (int?)1 : oc2.Matches(values) ? (int?)2 : null;
-                result.Detail = result.Level.HasValue ? "XTU readback: P/E-core ratios, IccMax and voltage mode/offset match OEM " + (result.Level == 0 ? "Off" : result.Level == 1 ? "OC01" : "OC02") : "CPU targets do not match OEM Off, OC01 or OC02; select a main preset to reset them";
+                result.FirmwareStartup = !result.Level.HasValue && FirmwareStartupProfile.Matches(values);
+                result.Detail = result.Level.HasValue
+                    ? "XTU readback: P/E-core ratios, IccMax and voltage mode/offset match OEM " + (result.Level == 0 ? "Off" : result.Level == 1 ? "OC01" : "OC02")
+                    : result.FirmwareStartup
+                        ? "Firmware / Startup state · Matches the observed R16 startup CPU settings"
+                        : "CPU targets do not match OEM Off, OC01 or OC02; select a main preset to reset them";
                 nextRead = utcNow().AddSeconds(3);
             }
             catch (Exception error)
             {
                 result.Readable = false;
                 result.Level = null;
+                result.FirmwareStartup = false;
                 result.Detail = "CPU verification unavailable: " + error.Message;
                 Release();
                 nextRead = utcNow().AddSeconds(10);

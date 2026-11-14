@@ -68,7 +68,10 @@ namespace HardwareDeck
             bool fresh = PresetFresh();
             bool enabled = fresh && state.CanChange && mode != null && mode.CanChange && !modeBusy;
             bool conflict = fresh && state.Cpu > 0 && state.Cooling != PresetPolicy.Performance;
-            Text("ModeCurrent", !fresh || !state.CpuReadable || !state.PowerVerified ? "Unverified" : conflict ? "Conflict" : state.LinkedPreset.HasValue ? "Linked" : "Independent");
+            bool firmware = fresh && state.CpuReadable && !state.Cpu.HasValue && state.PowerVerified &&
+                state.Cooling == PresetPolicy.Balanced && state.FirmwareStartup;
+            Text("ModeCurrent", !fresh || !state.CpuReadable || !state.PowerVerified ? "Unverified" : conflict ? "Conflict" :
+                firmware ? "Firmware / Startup state" : state.LinkedPreset.HasValue ? "Linked" : "Independent");
             Find<TextBlock>("ModeCurrent").ToolTip = state == null ? "Waiting for CPU and cooling readback" : state.Detail;
             foreach (int id in PresetPolicy.CoolingModes)
             {
@@ -82,7 +85,8 @@ namespace HardwareDeck
             SetPresetButton("CpuOC01", "OC01", enabled && state.Cooling == PresetPolicy.Performance, fresh && state.CpuReadable && state.Cpu == 1, "cpu", 1, "CPU OC01 requires Performance cooling");
             SetPresetButton("CpuOC02", "OC02", enabled && state.Cooling == PresetPolicy.Performance, fresh && state.CpuReadable && state.Cpu == 2, "cpu", 2, "CPU OC02 · Manual only · Requires Performance cooling");
             if (!modeBusy)
-                Text("ModeNotice", state != null && !state.CanChange ? state.Detail : !fresh ? "Waiting for fresh CPU and cooling readback" : conflict ? "CPU OC requires Performance cooling · Select a main preset" : !state.CanChange || !state.Cpu.HasValue || !state.PowerVerified ? state.Detail : presetNotice ?? "OC and cooling verified");
+                Text("ModeNotice", state != null && !state.CanChange ? state.Detail : !fresh ? "Waiting for fresh CPU and cooling readback" : conflict ? "CPU OC requires Performance cooling · Select a main preset" :
+                    firmware ? presetNotice ?? state.Detail : !state.Cpu.HasValue || !state.PowerVerified ? state.Detail : presetNotice ?? "OC and cooling verified");
         }
 
         void SetPresetButton(string control, string label, bool enabled, bool current, string kind, int value, string hint)

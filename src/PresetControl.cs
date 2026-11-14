@@ -5,8 +5,9 @@ namespace HardwareDeck
     public sealed class PresetState
     {
         public int? Cooling { get; set; }
-        public int? Cpu { get; set; } // 0 = OEM Off, 1 = OEM OC01, 2 = OEM OC02; null = unknown/custom.
+        public int? Cpu { get; set; } // 0 = OEM Off, 1 = OEM OC01, 2 = OEM OC02; null = no verified OEM preset.
         public bool CpuReadable { get; set; }
+        public bool FirmwareStartup { get; set; }
         public decimal? PowerLimitWatts { get; set; }
         public decimal? ShortPowerLimitWatts { get; set; }
         public bool PowerVerified { get; set; }

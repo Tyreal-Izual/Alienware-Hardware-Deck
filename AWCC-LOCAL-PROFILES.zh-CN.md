@@ -2,6 +2,10 @@
 
 [English](AWCC-LOCAL-PROFILES.md) | **简体中文**
 
+> 后续验证，2026-11-14：开机目标与已应用的 OEM Off 配置不同。
+> 独立的 Firmware / Startup state 分类见[预设控制](PRESET-CONTROLS.zh-CN.md)，
+> 证据见[验证记录](VERIFICATION.zh-CN.md)。
+
 > 后续验证，2026-11-06：已通过 AWCC 原生 Custom CPU 编辑器激活并验证 OC02。
 > 实机 worker 确认两组 E 核目标均为 45，P 核／电压／电流目标正确，
 > 散热为 Performance，功耗上限为 253/253 W。

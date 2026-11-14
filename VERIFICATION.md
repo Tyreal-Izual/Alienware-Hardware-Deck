@@ -2,6 +2,38 @@
 
 **English** | [简体中文](VERIFICATION.zh-CN.md)
 
+## Firmware startup-state follow-up (2026-11-14)
+
+The machine booted at 20:42:38 UTC. AWCC's 20:43:36 inventory matched the
+[startup fingerprint](PRESET-CONTROLS.md#firmware-startup-classification), while its
+cached profile remained Off and no post-boot CPU activation was logged. The OEM
+configuration hash matched the earlier audit; cached IDs are not hardware proof.
+
+The captured 53 relevant values are stored as a data-only test fixture at
+`tests/fixtures/r16-startup-controls.json`. Tests verify the separate nullable CPU
+identity, rejection after changing each individual control, missing values, read
+failures, cooling/power mismatches, unchanged request interlocks, explicit preset
+application, failed application, and worker serialization. Display tests verify
+the neutral label, no false preset highlights, no automatic request, and subsequent
+verified/manual or stale states. The startup fixture is rendered at 1080p with
+100%/125%/150% scaling; the 125% fullscreen preview was visually inspected.
+
+Local investigation evidence is in `.local/boot-readback/diagnosis.json`.
+The implementation adds only readback classification and presentation; the startup
+entry points and hardware-write transaction remain unchanged.
+
+All 546 automated checks passed: 51 sensor/configuration/voltage, 32 window state,
+27 network, 59 preset policy, 86 lifecycle/readback, 5 instance, 56 startup-task,
+29 packaging, and 201 display checks.
+
+The tested build was deployed through the existing protected-install repair flow.
+Read-only observation of the real dashboard confirmed Firmware / Startup state,
+Cooling B highlighted, no current OEM CPU/main-preset highlight, and the existing
+OC/cooling interlocks. Saved window preferences were unchanged. Comparing AWCC's
+CPU-activation log before and after deployment found no additional profile activation.
+This live check reused the already-observed boot state; it did not reboot the machine
+or perform a hardware-mode switch.
+
 ## Elevated startup follow-up (2026-11-10)
 
 The startup contract has 56 offline checks for the fixed action, account/logon/run

@@ -62,6 +62,37 @@ for an already verified combination perform no write.
 The component controls share the same policy, transaction, verification and result
 path as the main buttons. There is no separate competing CPU tuning implementation.
 
+## Firmware startup classification
+
+The audited post-boot R16 / i9-14900KF control values differ from AWCC's applied
+Off profile. An exact match of all 53 required values, together with Balanced
+cooling and its verified power policy, displays **Firmware / Startup state**:
+
+| Control group | Confirmed startup value |
+| --- | --- |
+| 1-2 active P-core limits | 60 |
+| 3-8 active P-core limits | 57 |
+| Individual P-core IDs 120/121 | 61 |
+| Other individual P-core IDs 116-123 | 58 |
+| All individual and active-count E-core limits | 44 |
+| IccMax, ID 102 | 316 A |
+| Voltage offset / mode, IDs 34/88 | 0 / 0 |
+| PL1 / PL2, IDs 48/47 | 180 / 253 W |
+| Cooling | Balanced, 160 |
+
+This identifies the observed parameter pattern, not the history of how it was set.
+It is not an uptime-based grace period, a catch-all for unknown values, or a load
+stability claim. Missing, stale, changed, or inconsistent values cannot receive the
+startup label. The fingerprint is intentionally scoped to this audited configuration,
+including the captured favored-core indices.
+
+The CPU preset value stays null and the separate firmware marker is informational.
+It never satisfies an Off/OC01/OC02 target, lights a linked main preset, or relaxes the
+OC/cooling interlock. Cooling P alone remains unavailable until an OEM CPU preset is
+verified. An explicit main preset still applies the original AWCC workflow and must
+pass four matching readbacks. A failed request remains visibly failed even when the
+actual state still matches the startup pattern. No preset is applied automatically.
+
 ## Application path
 
 Main presets invoke AWCC's original accessible preset control. Its own service

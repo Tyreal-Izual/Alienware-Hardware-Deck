@@ -102,6 +102,8 @@ namespace HardwareDeck
                 Cooling = thermal.CurrentId,
                 Cpu = cpu.Level,
                 CpuReadable = cpu.Readable,
+                FirmwareStartup = cpu.Readable && !cpu.Level.HasValue && cpu.FirmwareStartup &&
+                    thermal.CurrentId == PresetPolicy.Balanced && power,
                 CapturedAt = cpu.CapturedAt,
                 PowerLimitWatts = cpu.PowerLimitWatts,
                 ShortPowerLimitWatts = cpu.ShortPowerLimitWatts,

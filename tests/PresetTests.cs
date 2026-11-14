@@ -54,14 +54,20 @@ public static class PresetTests
             Calls.Add("preset:" + mode);
             State.Cooling = mode;
             if (!FailCpu)
+            {
                 State.Cpu = mode == 161 ? 1 : 0;
+                State.FirmwareStartup = false;
+            }
         }
 
         public void ApplyOc02()
         {
             Calls.Add("cpu:2");
             if (!FailCpu)
+            {
                 State.Cpu = 2;
+                State.FirmwareStartup = false;
+            }
         }
 
         public void ApplyCooling(int mode)
@@ -77,6 +83,32 @@ public static class PresetTests
 
     public static void Run()
     {
+        var firmware = State(160, null);
+        firmware.FirmwareStartup = true;
+        Check(firmware.LinkedPreset == null, "Firmware startup never claims a linked preset");
+        foreach (int level in new[] { 0, 1, 2 })
+            Check(!new PresetTarget { Cooling = 160, Cpu = level }.Matches(firmware),
+                "Firmware startup cannot satisfy an OEM CPU target");
+        foreach (var request in new[] { Request("cpu", 1), Request("cpu", 2), Request("cooling", 161) })
+        {
+            var guarded = new Fake { State = State(160, null) };
+            guarded.State.FirmwareStartup = true;
+            Check(!PresetTransaction.Execute(request, guarded).Success && guarded.Calls.Count == 0,
+                "Firmware status does not relax independent OC/cooling guards");
+        }
+        var applyStock = new Fake { State = firmware };
+        Check(PresetTransaction.Execute(Request("preset", 160), applyStock).Success &&
+            applyStock.Calls.SequenceEqual(new[] { "preset:160" }),
+            "Explicit Balanced still applies and verifies OEM Off from firmware state");
+        var unchanged = new Fake { State = State(160, null), FailCpu = true };
+        unchanged.State.FirmwareStartup = true;
+        Check(!PresetTransaction.Execute(Request("preset", 160), unchanged).Success,
+            "A request cannot succeed while CPU readback remains in firmware state");
+        var firmwareForWire = State(160, null);
+        firmwareForWire.FirmwareStartup = true;
+        var encodedFirmware = new System.Web.Script.Serialization.JavaScriptSerializer().Serialize(firmwareForWire);
+        Check(new System.Web.Script.Serialization.JavaScriptSerializer().Deserialize<PresetState>(encodedFirmware).FirmwareStartup,
+            "Worker serialization preserves the separate firmware marker");
         foreach (int mode in new[]
         {
             163,

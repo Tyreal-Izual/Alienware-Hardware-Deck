@@ -73,6 +73,10 @@ existing AWCC window; **close AWCC before choosing OC02** so its CPU editor can 
 private desktop. AWCC game or power automation can override manual combinations.
 Unsupported versions, unavailable readback, and mismatches prevent verification.
 
+**Firmware / Startup state** identifies the confirmed boot pattern separately from
+OEM presets. It performs no tuning; manual preset choices keep strict verification.
+See [preset controls](PRESET-CONTROLS.md) for recognition rules.
+
 Both CPU and GPU power use `current / limit W`. The CPU limit is the current sustained
 package limit, PL1, and updates after mode changes. The tooltip also shows the short
 boost limit, PL2, so a brief power reading can exceed PL1. Missing or expired limit data
