@@ -299,6 +299,7 @@ namespace HardwareDeck
         {
             UpdateModeButtons();
             UpdateCpuPower();
+            UpdateCpuLimits();
             if (collectionError != null)
             {
                 Text("LiveState", "COLLECTION STOPPED");

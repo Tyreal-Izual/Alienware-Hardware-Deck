@@ -65,7 +65,7 @@ administrator access. Diagnostics contain machine information and stay local by 
 | Preset rules | [PresetControl.cs](src/PresetControl.cs): standard mode constants/order/names, target resolution, and verification transaction |
 | Preset execution | [PresetBackend.cs](src/PresetBackend.cs): real readers and actions; [AwccPresetBridge.cs](src/AwccPresetBridge.cs): original AWCC controls and private desktop ownership |
 | Worker protocol | [PresetWorker.cs](src/PresetWorker.cs): bounded JSON input, process isolation, session mutex, result handling, and timeouts |
-| CPU readback | [CpuPresetReader.cs](src/CpuPresetReader.cs): read-only XTU contract and OEM profile matching |
+| CPU readback | [CpuPresetReader.cs](src/CpuPresetReader.cs): read-only XTU contract and OEM profile matching; [CpuLimits.cs](src/CpuLimits.cs): current limits and core metadata; [DeckWindow.CpuLimits.cs](src/DeckWindow.CpuLimits.cs): read-only limit strip |
 | Window state | [WindowPreferences.cs](src/WindowPreferences.cs), [WindowPlacementSession.cs](src/WindowPlacementSession.cs): persistence, display identity, and DPI restoration |
 | Appearance | [WindowAppearance.cs](src/WindowAppearance.cs): native frame and embedded icon |
 

@@ -178,6 +178,7 @@ public static class SensorTests
         PresetTests.Run();
         PresetLifecycleTests.Run();
         StartupInstanceTests.Run();
+        CpuLimitsTests.Run();
         return 0;
     }
 }

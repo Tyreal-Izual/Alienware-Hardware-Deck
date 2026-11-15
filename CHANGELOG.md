@@ -2,6 +2,13 @@
 
 **English** | [简体中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-15 — Live CPU limits
+
+- Show read-only IccMax, favored/other P-core and E-core ratio references, highlighting
+  actual readback; include individual and active-count limits in hover details.
+- Group cores by XTU metadata, handle unknown/mixed/stale values explicitly, and use
+  a one-second read cache. Preserve all preset verification and hardware-write paths.
+
 ## 2026-11-14 — Recognized firmware startup state
 
 - Display the exact audited boot fingerprint as **Firmware / Startup state**, without

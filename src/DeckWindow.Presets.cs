@@ -119,6 +119,7 @@ namespace HardwareDeck
             Text("ModeNotice", result.Message);
             UpdateModeButtons();
             UpdateCpuPower();
+            UpdateCpuLimits();
         }
     }
 }

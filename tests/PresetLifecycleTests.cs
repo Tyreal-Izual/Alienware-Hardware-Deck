@@ -203,11 +203,14 @@ public static class PresetLifecycleTests
         {
             var first = reader.ReadForCooling(160);
             Check(first.Readable && first.Level == 0 && first.PowerLimitWatts == 180, "Read a verified stock CPU baseline");
-            now = now.AddSeconds(1);
+            now = now.AddMilliseconds(500);
             Check(ReferenceEquals(first, reader.ReadForCooling(160)) && tuning.Refreshes == 1, "Unchanged cooling uses the ordinary read cache");
+            now = now.AddMilliseconds(600);
+            Check(!ReferenceEquals(first, reader.ReadForCooling(160)) && tuning.Refreshes == 2,
+                "Current CPU limits refresh after one second even without a cooling change");
             tuning.Values = ValuesFor(true, 253);
             var changed = reader.ReadForCooling(161);
-            Check(changed.Level == 1 && changed.PowerLimitWatts == 253 && tuning.Refreshes == 2, "A cooling change cannot reuse CPU values from the previous mode");
+            Check(changed.Level == 1 && changed.PowerLimitWatts == 253 && tuning.Refreshes == 3, "A cooling change cannot reuse CPU values from the previous mode");
             Check(opens == 1, "Successful reads reuse the connection");
             foreach (var value in tuning.Values)
                 if ((value.Id >= 1500 && value.Id <= 1515) || (value.Id >= 4500 && value.Id <= 4515))

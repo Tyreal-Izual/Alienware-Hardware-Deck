@@ -61,6 +61,17 @@ The OEM configuration is version 1. SHA-256 at inspection:
 The local machine-readable comparison is saved under the Git-ignored
 `.local/awcc-sync/local-profiles-audit.json`.
 
+## Favored-core identification
+
+The 2026-11-14 AWCC inventory labels XTU IDs 120/121 as `Performance Core 4 ★`
+and `Performance Core 5 ★`. Metadata inspection of installed
+`C:\Windows\SysWOW64\XtuInterface.dll` confirms an `IsFavoredCore` field on
+`IronCity.Core.XtuTuningControl`; `XtuCoreServer.dll`'s
+`XtuTuningImpl.ConvertTuningControl` copies that flag from `TuningControlData`.
+This provides a direct grouping source independent of the numeric ratio settings.
+The live display reads the flag and retains unknown status if it is absent. See
+[CPU limits](PRESET-CONTROLS.md#live-cpu-limits) for display and interpretation.
+
 ## Mode selection and actual calls
 
 The following mapping applies to normal app mode with AWCC overclocking enabled:

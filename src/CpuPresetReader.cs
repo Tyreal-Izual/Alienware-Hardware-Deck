@@ -29,6 +29,17 @@ namespace HardwareDeck
 
         [DataMember]
         public uint Id { get; set; }
+
+        bool isFavoredCore;
+        [DataMember]
+        public bool IsFavoredCore
+        {
+            get { return isFavoredCore; }
+            set { isFavoredCore = value; HasFavoredCoreMetadata = true; }
+        }
+
+        // A missing wire field is different from an explicitly false flag.
+        public bool HasFavoredCoreMetadata { get; private set; }
     }
 
     public sealed class CpuPresetReading
@@ -40,6 +51,7 @@ namespace HardwareDeck
         public string CapturedAt { get; set; }
         public decimal? PowerLimitWatts { get; set; }
         public decimal? ShortPowerLimitWatts { get; set; }
+        public CpuLimitReading Limits { get; set; }
 
         [ScriptIgnore]
         public Dictionary<string, decimal> CheckedValues { get; set; }
@@ -251,6 +263,7 @@ namespace HardwareDeck
                     throw new InvalidOperationException("XTU returned unavailable active settings");
                 result.PowerLimitWatts = values[48];
                 result.ShortPowerLimitWatts = values[47];
+                result.Limits = CpuLimitReading.FromControls(available);
                 result.Readable = true;
                 result.Level = off.Matches(values) ? (int?)0 : on.Matches(values) ? (int?)1 : oc2.Matches(values) ? (int?)2 : null;
                 result.FirmwareStartup = !result.Level.HasValue && FirmwareStartupProfile.Matches(values);
@@ -259,13 +272,14 @@ namespace HardwareDeck
                     : result.FirmwareStartup
                         ? "Firmware / Startup state · Matches the observed R16 startup CPU settings"
                         : "CPU targets do not match OEM Off, OC01 or OC02; select a main preset to reset them";
-                nextRead = utcNow().AddSeconds(3);
+                nextRead = utcNow().AddSeconds(1);
             }
             catch (Exception error)
             {
                 result.Readable = false;
                 result.Level = null;
                 result.FirmwareStartup = false;
+                result.Limits = null;
                 result.Detail = "CPU verification unavailable: " + error.Message;
                 Release();
                 nextRead = utcNow().AddSeconds(10);

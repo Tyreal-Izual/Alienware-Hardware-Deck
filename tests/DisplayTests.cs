@@ -85,6 +85,7 @@ public static class DisplayTests
                 Cooling = 160,
                 Cpu = 0,
                 CpuReadable = true,
+                Limits = LimitFixture(false),
                 PowerLimitWatts = 180,
                 ShortPowerLimitWatts = 253,
                 PowerVerified = true,
@@ -119,13 +120,121 @@ public static class DisplayTests
         };
     }
 
+    static CpuLimitReading LimitFixture(bool boot)
+    {
+        return new CpuLimitReading
+        {
+            IccMaxAmps = boot ? 316 : 307,
+            Pcores = Enumerable.Range(0, 8).Select(i => new PcoreLimit
+            {
+                Index = i,
+                Favored = i == 4 || i == 5,
+                Ratio = i == 4 || i == 5 ? (boot ? 61 : 60) : (boot ? 58 : 57)
+            }).ToList(),
+            ActivePcoreRatios = new decimal[] { 60, 60, 57, 57, 57, 57, 57, 57 },
+            EcoreRatios = Enumerable.Repeat(44m, 16).ToArray(),
+            ActiveEcoreRatios = Enumerable.Repeat(44m, 16).ToArray()
+        };
+    }
+
     static Snapshot FirmwareFixture()
     {
         var sample = Fixture();
         sample.Preset.Cpu = null;
         sample.Preset.FirmwareStartup = true;
+        sample.Preset.Limits = LimitFixture(true);
         sample.Preset.Detail = "Firmware / Startup state · Matches the observed R16 startup CPU settings · Cooling power limits verified";
         return sample;
+    }
+
+    static void TestCpuLimitStrip(DeckWindow deck, Window window)
+    {
+        var sample = FirmwareFixture();
+        Call(deck, "Update", sample);
+        Func<string, TextBlock> block = name => (TextBlock)window.FindName(name);
+        Check((string)block("IccSecond").Tag == "Current" && (string)block("FavoredSecond").Tag == "Current" &&
+            (string)block("OtherPSecond").Tag == "Current" && (string)block("EcoreFirst").Tag == "Current",
+            "Startup limits highlight their actual values despite no OEM CPU preset");
+        Check(block("FavoredCoreLabel").Text == "Favored P4/P5", "Label identifies the metadata-reported favored cores");
+        Check(typeof(DeckWindow).GetField("pendingRequest", Private).GetValue(deck) == null &&
+            !block("IccSecond").Focusable && !block("EcoreSecond").Focusable,
+            "Limit badges are read-only and queue no tuning request");
+        Check(Convert.ToString(((FrameworkElement)window.FindName("FavoredLimits")).ToolTip).Contains("1: 60×") &&
+            Convert.ToString(((FrameworkElement)window.FindName("FavoredLimits")).ToolTip).Contains("IsFavoredCore"),
+            "Ratio tooltip separates favored metadata and active-core-count ceilings");
+        string etip = Convert.ToString(((FrameworkElement)window.FindName("EcoreLimits")).ToolTip);
+        Check(etip.Contains("E0: 44×") && etip.Contains("E15: 44×") && etip.Contains("16: 44×") &&
+            etip.Contains("Active E-core count limits"), "E-core tooltip includes both complete groups with distinct numbering");
+
+        sample.Preset.Limits.EcoreRatios = Enumerable.Repeat(45m, 16).ToArray();
+        sample.Preset.Limits.ActiveEcoreRatios = Enumerable.Repeat(45m, 16).ToArray();
+        sample.Preset.FirmwareStartup = false;
+        Call(deck, "Update", sample);
+        Check((string)block("EcoreSecond").Tag == "Current" && block("EcoreFirst").Tag == null,
+            "Highlight actual 45x E-core limits even without a recognized full CPU preset");
+        sample.Preset.Limits.EcoreRatios[15] = 44;
+        Call(deck, "Update", sample);
+        Check(block("EcoreActual").Text == "Mixed" && block("EcoreFirst").Tag == null && block("EcoreSecond").Tag == null,
+            "Mixed individual E-core limits do not highlight a uniform reference");
+        sample.Preset.Limits.EcoreRatios[15] = 45;
+        sample.Preset.Limits.ActiveEcoreRatios[15] = 44;
+        Call(deck, "Update", sample);
+        Check(block("EcoreActual").Text == "Mixed" && block("EcoreSecond").Tag == null,
+            "Active-count disagreement cannot retain the 45x highlight");
+        sample.Preset.Limits.ActiveEcoreRatios = null;
+        Call(deck, "Update", sample);
+        Check(block("EcoreActual").Text == "—" && block("EcoreSecond").Tag == null,
+            "Incomplete E-core readback clears highlights");
+        sample.Preset.Limits.EcoreRatios = Enumerable.Repeat(46m, 16).ToArray();
+        sample.Preset.Limits.ActiveEcoreRatios = Enumerable.Repeat(46m, 16).ToArray();
+        Call(deck, "Update", sample);
+        Check(block("EcoreActual").Text == "Other: 46×" && block("EcoreFirst").Tag == null && block("EcoreSecond").Tag == null,
+            "Custom E-core ratios are displayed without substituting an OEM reference");
+
+        sample = FirmwareFixture();
+        sample.Preset.FirmwareStartup = false;
+        sample.Preset.Limits.IccMaxAmps = 320;
+        foreach (var core in sample.Preset.Limits.Pcores.Where(c => c.Favored == true)) core.Ratio = 62;
+        Call(deck, "Update", sample);
+        Check(block("IccFirst").Tag == null && block("IccSecond").Tag == null && block("IccActual").Text == "Other: 320 A",
+            "A custom current limit is shown without selecting a known reference");
+        Check(block("FavoredActual").Text == "Other: 62×" && block("FavoredSecond").Tag == null,
+            "A custom uniform core limit is not clamped to a known option");
+        sample = FirmwareFixture();
+        sample.Preset.Limits.Pcores[4].Ratio = 62;
+        Call(deck, "Update", sample);
+        Check(block("FavoredActual").Text == "Mixed" && block("FavoredFirst").Tag == null && block("FavoredSecond").Tag == null,
+            "Mixed per-core limits never masquerade as one group value");
+        sample = FirmwareFixture();
+        sample.Preset.Limits.Pcores[0].Favored = null;
+        Call(deck, "Update", sample);
+        Check(block("FavoredActual").Text == "—" && block("OtherPActual").Text == "—" &&
+            (string)block("IccSecond").Tag == "Current" && (string)block("EcoreFirst").Tag == "Current",
+            "Missing P-core metadata does not hide valid IccMax or E-core limits or invent core groups");
+        sample = Fixture();
+        Call(deck, "Update", sample);
+        Check((string)block("IccFirst").Tag == "Current" && (string)block("FavoredFirst").Tag == "Current" &&
+            (string)block("OtherPFirst").Tag == "Current" && (string)block("EcoreFirst").Tag == "Current",
+            "New readback updates all limit highlights");
+        var actual = FirmwareFixture().Preset;
+        actual.Limits.EcoreRatios = Enumerable.Repeat(45m, 16).ToArray();
+        actual.Limits.ActiveEcoreRatios = Enumerable.Repeat(45m, 16).ToArray();
+        actual.FirmwareStartup = false;
+        Call(deck, "CompletePreset", new PresetResult { Success = false, Actual = actual, Message = "Readback differs" });
+        Check((string)block("OtherPSecond").Tag == "Current" && (string)block("EcoreSecond").Tag == "Current",
+            "Worker completion updates P/E-core limits immediately from actual state");
+        sample = FirmwareFixture();
+        sample.Preset.CpuReadable = false;
+        Call(deck, "Update", sample);
+        Check(block("IccSecond").Tag == null && block("FavoredSecond").Tag == null && block("IccActual").Text == "—" &&
+            block("EcoreFirst").Tag == null && block("EcoreActual").Text == "—",
+            "Unreadable settings clear all limit highlights");
+        sample = FirmwareFixture();
+        Call(deck, "Update", sample);
+        typeof(DeckWindow).GetField("lastUpdate", Private).SetValue(deck, DateTime.UtcNow.AddSeconds(-30));
+        Call(deck, "UpdateStatus");
+        Check(block("IccSecond").Tag == null && block("OtherPSecond").Tag == null && block("EcoreFirst").Tag == null,
+            "Stale settings cannot remain highlighted");
     }
 
     static void TestFirmwareState(DeckWindow deck, Window window)
@@ -363,6 +472,19 @@ public static class DisplayTests
             Check(text.ActualWidth + 1 >= measured.DesiredSize.Width, name + " clips " + id);
         }
 
+        var limits = (WrapPanel)window.FindName("CpuLimitsStrip");
+        bool limitsFit = true;
+        foreach (string id in new[] { "IccFirst", "IccSecond", "FavoredCoreLabel", "FavoredFirst", "FavoredSecond", "OtherPFirst", "OtherPSecond", "EcoreFirst", "EcoreSecond" })
+        {
+            var text = (TextBlock)window.FindName(id);
+            var bounds = text.TransformToAncestor(limits).TransformBounds(new Rect(text.RenderSize));
+            var measured = new TextBlock { Text = text.Text, FontFamily = text.FontFamily,
+                FontSize = text.FontSize, FontWeight = text.FontWeight, Padding = text.Padding };
+            measured.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            limitsFit &= bounds.Left >= -1 && bounds.Right <= limits.ActualWidth + 1 &&
+                text.ActualWidth + 1 >= measured.DesiredSize.Width;
+        }
+        Check(limitsFit, name + " CPU limit references and core label must fit without clipping or overlapping the controls");
         var ocTwo = (Button)window.FindName("CpuOC02");
         var edge = ocTwo.TransformToAncestor(surface).Transform(new Point(ocTwo.ActualWidth, 0));
         Check(edge.X <= surface.ActualWidth && ocTwo.ActualWidth >= 62, name + " OC02 must fit the control row");
@@ -438,6 +560,7 @@ public static class DisplayTests
         Check(((Canvas)window.FindName("GpuChart")).ActualHeight >= 90, "Adaptive charts must retain a readable plot");
         TestModeButtons(deck, window);
         TestFirmwareState(deck, window);
+        TestCpuLimitStrip(deck, window);
         TestPowerLabels(deck, window);
         sample.CapturedAt = DateTime.UtcNow.ToString("o");
         Call(deck, "Update", sample);

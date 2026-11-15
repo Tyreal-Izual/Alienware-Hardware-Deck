@@ -93,6 +93,40 @@ verified. An explicit main preset still applies the original AWCC workflow and m
 pass four matching readbacks. A failed request remains visibly failed even when the
 actual state still matches the startup pattern. No preset is applied automatically.
 
+## Live CPU limits
+
+The read-only strip shares the verified XTU readback, with a one-second cache and
+forced refresh after preset requests or observed cooling changes. Known references
+remain visible; only an exact current match is highlighted. Other values are shown
+explicitly, mixed per-core groups show **Mixed**, and unavailable/stale values show
+an em dash. Hover details include all eight individual P-core ceilings and the
+separate 1–8 active-P-core-count limits. The E-core group shows 44×/45× references;
+it highlights a value only when all 16 individual and all 16 active-count limits
+agree. Otherwise it shows **Mixed** or the unavailable marker. Its tooltip lists
+both groups separately, and E-core display does not require favored-P-core metadata.
+
+| Observed state | IccMax | Favored P-core ceiling | Other P-core ceiling | E-core ceiling |
+| --- | --- | --- | --- | --- |
+| Firmware / Startup state | 316 A | 61× | 58× | 44× |
+| OEM Off | 307 A | 60× | 57× | 44× |
+| OEM OC01 | 316 A | 61× | 57× | 44× |
+| OEM OC02 | 316 A | 61× | 57× | 45× |
+
+IccMax is a configured current ceiling, not measured current. Ratios are clock
+ceilings: at a 100 MHz base clock, 60× corresponds to 6.0 GHz. Active-count limits,
+power/current and temperature constraints also govern attainable clocks. These
+displayed settings alone do not verify a complete preset. The full 53-value check
+and OC/cooling guards remain authoritative.
+
+Favored-core grouping comes from XTU's explicit `IsFavoredCore` field, never inferred
+from higher ratios. The audited machine flags P4/P5; these are zero-based XTU core
+indices, not Windows logical-processor numbers. The label follows live flags. Missing
+flags disable grouping rather than guessing. Both groups are P-cores; E-cores are
+separate. Intel describes favored cores as those with greater maximum-frequency
+potential, used by Turbo Boost Max Technology 3.0 for suitable workloads. See
+[Intel's explanation](https://www.intel.com/content/www/us/en/support/articles/000021587/processors.html)
+and [the local evidence](AWCC-LOCAL-PROFILES.md#favored-core-identification).
+
 ## Application path
 
 Main presets invoke AWCC's original accessible preset control. Its own service
@@ -159,8 +193,8 @@ manual cooling choice. HardwareDeck displays the actual combined readback.
 - Completion: require four consecutive matching reads after the request. UI selection
   alone and requested settings never determine success. A fresh worker result cannot
   be overwritten by an older cached sensor snapshot.
-- Sampling: reuse the XTU connection and cache ordinary CPU-preset reads for three
-  seconds. Requests and observed cooling changes force fresh reads, so a new cooling
+- Sampling: reuse the XTU connection and cache ordinary CPU-preset reads for one
+  second. Requests and observed cooling changes force fresh reads, so a new cooling
   mode is not paired with the previous mode's cached CPU state. The readback interface exposes no tuning
   setter, SDK initialization, driver installation or voltage-write operation.
 

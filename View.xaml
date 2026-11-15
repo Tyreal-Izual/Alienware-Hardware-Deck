@@ -88,6 +88,15 @@
         </ControlTemplate.Triggers>
       </ControlTemplate></Setter.Value></Setter>
     </Style>
+    <Style x:Key="LimitValue" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="13"/><Setter Property="FontWeight" Value="Bold"/>
+      <Setter Property="Foreground" Value="#9CAEBB"/><Setter Property="Background" Value="#0D161F"/>
+      <Setter Property="Padding" Value="6,3"/><Setter Property="Margin" Value="2,0"/>
+      <Setter Property="VerticalAlignment" Value="Center"/>
+      <Style.Triggers><Trigger Property="Tag" Value="Current">
+        <Setter Property="Foreground" Value="#D2FFF0"/><Setter Property="Background" Value="#17463C"/>
+      </Trigger></Style.Triggers>
+    </Style>
     <Style TargetType="ComboBox">
       <Setter Property="Foreground" Value="#DCE8F2"/><Setter Property="Background" Value="#182733"/>
       <Setter Property="FontSize" Value="11"/><Setter Property="MinHeight" Value="30"/>
@@ -252,7 +261,35 @@
               <TextBlock x:Name="FanSummary" Text="Waiting for fan sensors" Style="{StaticResource Label}" Margin="0,3,12,0"/>
             </StackPanel>
           </DockPanel>
-          <StackPanel x:Name="PresetDetails" Orientation="Horizontal" HorizontalAlignment="Right" Margin="4,0,4,4">
+          <Grid Margin="4,0,4,4">
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <WrapPanel x:Name="CpuLimitsStrip" VerticalAlignment="Center" Margin="0,0,10,0" AutomationProperties.Name="Read-only CPU limits">
+              <StackPanel x:Name="IccLimits" Orientation="Horizontal" Margin="0,0,12,0">
+                <TextBlock Text="IccMax" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBlock x:Name="IccFirst" Text="307 A" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="IccSecond" Text="316 A" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="IccActual" Text="—" Style="{StaticResource LimitValue}" Foreground="#E4B77A" MaxWidth="100" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <StackPanel x:Name="FavoredLimits" Orientation="Horizontal" Margin="0,0,12,0">
+                <TextBlock x:Name="FavoredCoreLabel" Text="Favored P" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBlock x:Name="FavoredFirst" Text="60×" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="FavoredSecond" Text="61×" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="FavoredActual" Text="—" Style="{StaticResource LimitValue}" Foreground="#E4B77A" MaxWidth="100" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <StackPanel x:Name="OtherPLimits" Orientation="Horizontal" Margin="0,0,12,0">
+                <TextBlock Text="Other P" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBlock x:Name="OtherPFirst" Text="57×" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="OtherPSecond" Text="58×" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="OtherPActual" Text="—" Style="{StaticResource LimitValue}" Foreground="#E4B77A" MaxWidth="100" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+              <StackPanel x:Name="EcoreLimits" Orientation="Horizontal" Margin="0,0,12,0">
+                <TextBlock Text="E-core" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <TextBlock x:Name="EcoreFirst" Text="44×" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="EcoreSecond" Text="45×" Style="{StaticResource LimitValue}"/>
+                <TextBlock x:Name="EcoreActual" Text="—" Style="{StaticResource LimitValue}" Foreground="#E4B77A" MaxWidth="100" TextTrimming="CharacterEllipsis"/>
+              </StackPanel>
+            </WrapPanel>
+          <StackPanel x:Name="PresetDetails" Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
             <TextBlock Text="Cooling" Style="{StaticResource Label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <Button Width="54" MinWidth="54" Height="30" x:Name="CoolingQuiet" Content="Q" Style="{StaticResource ModeButton}" IsEnabled="False"/>
             <Button Width="54" MinWidth="54" Height="30" x:Name="CoolingBalanced" Content="B" Style="{StaticResource ModeButton}" IsEnabled="False"/>
@@ -262,6 +299,7 @@
             <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOC01" Content="OC01" Style="{StaticResource ModeButton}" IsEnabled="False"/>
             <Button Width="76" MinWidth="62" Height="30" x:Name="CpuOC02" Content="OC02" Style="{StaticResource ModeButton}" IsEnabled="False"/>
           </StackPanel>
+          </Grid>
           <UniformGrid x:Name="FanPanel" Rows="1"/>
           <UniformGrid x:Name="TemperaturePanel" Rows="1" Margin="0,4,0,0"/>
           <Grid Margin="4,7,4,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>

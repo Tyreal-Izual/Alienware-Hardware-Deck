@@ -61,6 +61,17 @@ OEM 配置版本为 1。检查时的 SHA-256：
 本地机器可读的对比结果保存在被 Git 忽略的
 `.local/awcc-sync/local-profiles-audit.json`。
 
+## 优选核心识别
+
+2026-11-14 的 AWCC 清单将 XTU ID 120/121 标为 `Performance Core 4 ★`
+和 `Performance Core 5 ★`。检查已安装的
+`C:\Windows\SysWOW64\XtuInterface.dll` 元数据，确认
+`IronCity.Core.XtuTuningControl` 存在 `IsFavoredCore` 字段；
+`XtuCoreServer.dll` 的 `XtuTuningImpl.ConvertTuningControl` 从
+`TuningControlData` 复制该标志。因此可以直接分组，无须根据倍率数值推断。
+实时界面读取此标志，字段缺失时保留未知状态。显示与含义见
+[CPU 上限](PRESET-CONTROLS.zh-CN.md#实时-cpu-上限)。
+
 ## 模式选择与实际调用
 
 以下映射适用于常规应用模式，且 AWCC 超频功能已启用：

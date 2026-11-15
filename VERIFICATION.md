@@ -2,6 +2,25 @@
 
 **English** | [简体中文](VERIFICATION.zh-CN.md)
 
+## Live CPU limits review (2026-11-15)
+
+All 590 automated checks passed: 51 sensor/configuration/voltage, 32 window state,
+27 network, 59 preset policy, 87 lifecycle/readback, 5 instance, 19 CPU-limit data,
+56 startup-task, 29 packaging, and 225 display checks. Coverage includes wire metadata,
+favored-core grouping, all 32 E-core limits, mixed/custom/stale values, serialization,
+immediate preset-result updates, the one-second cache, and read-only presentation.
+The 125% fullscreen fixture was visually inspected; 1080p fits at 100%/125% scaling,
+and higher scaling retains vertical scrolling.
+
+The protected installation was updated through the existing repair flow. A read-only
+check on 2026-11-14 confirmed **Favored P4/P5** and 316 A / 61× / 58× under Firmware /
+Startup state. The E-core update's installed EXE/view hashes matched and its task was
+healthy; monitor identity, geometry, fullscreen and pin were preserved, with only
+Windows' display-number name refreshed. Both deployments left AWCC's CPU activation
+log unchanged. E-core screenshot verification on 2026-11-15 was blocked by Direct3D
+capture error `0x887A0005`, so no live E-core highlight observation is claimed.
+Evidence: `.local/cpu-limits/deployment.json` and `.local/ecore-limits/deployment.json`.
+
 ## Firmware startup-state follow-up (2026-11-14)
 
 The machine booted at 20:42:38 UTC. AWCC's 20:43:36 inventory matched the

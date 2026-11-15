@@ -77,6 +77,11 @@ Unsupported versions, unavailable readback, and mismatches prevent verification.
 OEM presets. It performs no tuning; manual preset choices keep strict verification.
 See [preset controls](PRESET-CONTROLS.md) for recognition rules.
 
+The read-only CPU limit strip shows IccMax, favored/other P-core and E-core ratio ceilings,
+with all known reference values visible and the actual value highlighted. Hover for
+individual cores and active-core-count limits; these are settings, not measured
+current or clock speed. See [CPU limits](PRESET-CONTROLS.md#live-cpu-limits).
+
 Both CPU and GPU power use `current / limit W`. The CPU limit is the current sustained
 package limit, PL1, and updates after mode changes. The tooltip also shows the short
 boost limit, PL2, so a brief power reading can exceed PL1. Missing or expired limit data

@@ -63,7 +63,7 @@ CI 执行相同命令，但没有 Alienware 硬件。实机验收见 [VERIFICATI
 | 预设规则 | [PresetControl.cs](src/PresetControl.cs)：标准模式常量／顺序／名称、目标解析和校验事务 |
 | 预设执行 | [PresetBackend.cs](src/PresetBackend.cs)：真实读取器与操作；[AwccPresetBridge.cs](src/AwccPresetBridge.cs)：AWCC 原生控件和私有桌面所有权 |
 | Worker 协议 | [PresetWorker.cs](src/PresetWorker.cs)：有界 JSON 输入、进程隔离、会话互斥锁、结果处理和超时 |
-| CPU 读回 | [CpuPresetReader.cs](src/CpuPresetReader.cs)：只读 XTU 契约与 OEM 配置匹配 |
+| CPU 读回 | [CpuPresetReader.cs](src/CpuPresetReader.cs)：只读 XTU 契约与 OEM 配置匹配；[CpuLimits.cs](src/CpuLimits.cs)：当前上限与核心元数据；[DeckWindow.CpuLimits.cs](src/DeckWindow.CpuLimits.cs)：只读上限栏 |
 | 窗口状态 | [WindowPreferences.cs](src/WindowPreferences.cs)、[WindowPlacementSession.cs](src/WindowPlacementSession.cs)：持久化、屏幕身份和 DPI 恢复 |
 | 外观 | [WindowAppearance.cs](src/WindowAppearance.cs)：原生边框与内嵌图标 |
 
