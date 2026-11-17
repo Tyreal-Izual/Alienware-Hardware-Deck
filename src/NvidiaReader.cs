@@ -1,191 +1,174 @@
 using System;
+using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace HardwareDeck
 {
-    // One NVML connection for the life of the collector; no helper processes.
+    // The collector only reads this cache; native calls and pipe waits stay off its thread.
     public sealed class NvidiaReader : IDisposable
     {
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        static extern IntPtr LoadLibraryEx(string file, IntPtr reserved, uint flags);
-        [DllImport("kernel32.dll", CharSet = CharSet.Ansi, ExactSpelling = true)]
-        static extern IntPtr GetProcAddress(IntPtr module, string name);
-        [DllImport("kernel32.dll")]
-        static extern bool FreeLibrary(IntPtr module);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Basic();
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Handle(uint index, out IntPtr device);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Name(IntPtr device, StringBuilder value, uint length);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Unsigned(IntPtr device, out uint value);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Indexed(IntPtr device, uint index, out uint value);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Usage(IntPtr device, out Utilization value);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Memory(IntPtr device, out MemoryInfo value);
-        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-        delegate int Temperature(IntPtr device, ref TemperatureInfo value);
-        [StructLayout(LayoutKind.Sequential)]
-        struct Utilization
-        {
-            public uint Gpu, Memory;
-        }
+        readonly object gate = new object();
+        readonly CancellationTokenSource stop = new CancellationTokenSource();
+        readonly Func<IGpuProcess> start;
+        readonly Action<string, string> log;
+        readonly int timeoutMs, retryMs;
+        Task monitor;
+        IGpuProcess active;
+        GpuData latest = new GpuData { Error = "GPU connecting" };
+        long received;
+        bool disposed;
 
-        [StructLayout(LayoutKind.Sequential)]
-        struct MemoryInfo
-        {
-            public ulong Total, Free, Used;
-        }
+        public NvidiaReader() : this(() => new GpuProcess(), DiagnosticLog.Write, 5000, 5000) { }
 
-        [StructLayout(LayoutKind.Sequential)]
-        struct TemperatureInfo
+        internal NvidiaReader(Func<IGpuProcess> start, Action<string, string> log, int timeoutMs, int retryMs)
         {
-            public uint Version, Sensor;
-            public int Temperature;
-        }
-
-        IntPtr library, device;
-        bool initialized;
-        DateTime nextTry = DateTime.MinValue;
-        string name, error;
-        Basic shutdown;
-        Unsigned fan, power, powerLimit;
-        Indexed temperatureLegacy, clock;
-        Temperature temperature;
-        Usage utilization;
-        Memory memory;
-        T Bind<T>(string symbol, bool required = false)
-            where T : class
-        {
-            var address = GetProcAddress(library, symbol);
-            if (address == IntPtr.Zero)
-            {
-                if (required)
-                    throw new InvalidOperationException("NVML is missing " + symbol);
-                return null;
-            }
-
-            return Marshal.GetDelegateForFunctionPointer(address, typeof(T)) as T;
-        }
-
-        bool Open()
-        {
-            if (device != IntPtr.Zero)
-                return true;
-            if (DateTime.UtcNow < nextTry)
-                return false;
-            nextTry = DateTime.UtcNow.AddSeconds(60);
-            try
-            {
-                var path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "nvml.dll");
-                if (!File.Exists(path))
-                    throw new InvalidOperationException("NVIDIA NVML driver library not found");
-                library = LoadLibraryEx(path, IntPtr.Zero, 0x00000800);
-                if (library == IntPtr.Zero)
-                    throw new InvalidOperationException("Unable to load NVIDIA NVML driver library");
-                shutdown = Bind<Basic>("nvmlShutdown", true);
-                int status = Bind<Basic>("nvmlInit_v2", true)();
-                if (status != 0)
-                    throw new InvalidOperationException("NVML initialization failed (" + status + ")");
-                initialized = true;
-                status = Bind<Handle>("nvmlDeviceGetHandleByIndex_v2", true)(0, out device);
-                if (status != 0)
-                    throw new InvalidOperationException("NVML found no available GPU (" + status + ")");
-                var text = new StringBuilder(96);
-                if (Bind<Name>("nvmlDeviceGetName", true)(device, text, 96) == 0)
-                    name = text.ToString();
-                temperature = Bind<Temperature>("nvmlDeviceGetTemperatureV");
-                temperatureLegacy = Bind<Indexed>("nvmlDeviceGetTemperature");
-                utilization = Bind<Usage>("nvmlDeviceGetUtilizationRates");
-                memory = Bind<Memory>("nvmlDeviceGetMemoryInfo");
-                fan = Bind<Unsigned>("nvmlDeviceGetFanSpeed");
-                power = Bind<Unsigned>("nvmlDeviceGetPowerUsage");
-                powerLimit = Bind<Unsigned>("nvmlDeviceGetPowerManagementLimit");
-                clock = Bind<Indexed>("nvmlDeviceGetClockInfo");
-                error = null;
-                return true;
-            }
-            catch (Exception ex)
-            {
-                error = ex.Message;
-                Close();
-                return false;
-            }
-        }
-
-        double? ReadUnsigned(Unsigned getter, double divisor)
-        {
-            uint value;
-            return getter != null && getter(device, out value) == 0 && value != uint.MaxValue ? (double?)value / divisor : null;
+            this.start = start;
+            this.log = log;
+            this.timeoutMs = timeoutMs;
+            this.retryMs = retryMs;
         }
 
         public GpuData Read()
         {
-            if (!Open())
-                return new GpuData
-                {
-                    Error = error ?? "NVIDIA NVML unavailable"
-                };
-            var result = new GpuData
+            lock (gate)
             {
-                Name = name
-            };
-            var thermal = new TemperatureInfo
-            {
-                Version = (uint)(Marshal.SizeOf(typeof(TemperatureInfo)) | (1 << 24)),
-                Sensor = 0
-            };
-            uint value;
-            if (temperature != null && temperature(device, ref thermal) == 0)
-                result.Temperature = Values.Range(thermal.Temperature, 0, 150);
-            else if (temperatureLegacy != null && temperatureLegacy(device, 0, out value) == 0)
-                result.Temperature = Values.Range(value, 0, 150);
-            Utilization use;
-            if (utilization != null && utilization(device, out use) == 0)
-                result.Load = Values.Range(use.Gpu, 0, 100);
-            MemoryInfo mem;
-            if (memory != null && memory(device, out mem) == 0 && mem.Total > 0 && mem.Used <= mem.Total)
-            {
-                result.MemoryUsedMiB = mem.Used / 1048576.0;
-                result.MemoryTotalMiB = mem.Total / 1048576.0;
+                if (disposed)
+                    return new GpuData { Error = "GPU reader closed" };
+                if (monitor == null)
+                    monitor = Task.Run((Func<Task>)Monitor);
+                if (string.IsNullOrEmpty(latest.Error) && (Stopwatch.GetTimestamp() - received) * 1000.0 / Stopwatch.Frequency > timeoutMs)
+                    return new GpuData { Name = latest.Name, Error = "GPU data stale · Reconnecting" };
+                return latest;
             }
-
-            // NVML describes this as intended fan speed; it is not a tachometer RPM.
-            result.FanPercent = ReadUnsigned(fan, 1);
-            result.PowerWatts = ReadUnsigned(power, 1000);
-            result.PowerLimitWatts = ReadUnsigned(powerLimit, 1000);
-            if (clock != null && clock(device, 0, out value) == 0)
-                result.ClockMHz = value;
-            if (!result.Temperature.HasValue && !result.Load.HasValue && !result.MemoryTotalMiB.HasValue)
-            {
-                result.Error = "NVML has no valid readings";
-                error = result.Error;
-                Close();
-                nextTry = DateTime.UtcNow.AddSeconds(30);
-            }
-
-            return result;
         }
 
-        void Close()
+        internal static int RetryDelay(int failures, int initial)
         {
-            device = IntPtr.Zero;
-            if (initialized && shutdown != null)
-                shutdown();
-            initialized = false;
-            if (library != IntPtr.Zero)
-                FreeLibrary(library);
-            library = IntPtr.Zero;
+            return (int)Math.Min(60000L, (long)initial * (1 << Math.Min(Math.Max(failures - 1, 0), 4)));
+        }
+
+        void Record(string kind, string detail)
+        {
+            try { log(kind, detail); } catch { }
+        }
+
+        void Close(IGpuProcess child)
+        {
+            if (child == null)
+                return;
+            try { child.Dispose(); }
+            catch (Exception error) { Record("gpu.cleanup", error.Message); }
+        }
+
+        async Task Monitor()
+        {
+            int failures = 0;
+            bool recovering = false;
+            while (!stop.IsCancellationRequested)
+            {
+                IGpuProcess child = null;
+                int pid = 0;
+                string failure = null;
+                try
+                {
+                    child = start();
+                    pid = child.Id;
+                    lock (gate)
+                    {
+                        if (!disposed)
+                            active = child;
+                    }
+                    stop.Token.ThrowIfCancellationRequested();
+                    int healthy = 0;
+                    while (!stop.IsCancellationRequested)
+                    {
+                        var read = child.NextLine();
+                        using (var deadline = CancellationTokenSource.CreateLinkedTokenSource(stop.Token))
+                        {
+                            var delay = Task.Delay(timeoutMs, deadline.Token);
+                            if (await Task.WhenAny(read, delay).ConfigureAwait(false) != read)
+                            {
+                                ObserveFailure(read);
+                                stop.Token.ThrowIfCancellationRequested();
+                                throw new TimeoutException("GPU worker did not respond within " + timeoutMs + " ms");
+                            }
+                            deadline.Cancel();
+                        }
+                        string line = await read.ConfigureAwait(false);
+                        if (line == null)
+                            throw new IOException("GPU worker closed its output");
+                        var data = GpuWorker.Parse(line);
+                        if (!string.IsNullOrEmpty(data.Error))
+                            throw new IOException("NVML unavailable: " + data.Error);
+                        lock (gate)
+                        {
+                            if (disposed)
+                                break;
+                            latest = data;
+                            received = Stopwatch.GetTimestamp();
+                        }
+                        if (recovering)
+                        {
+                            Record("gpu.recovered", "Worker " + pid + " resumed valid readings");
+                            recovering = false;
+                        }
+                        // One good frame must not reset a repeatedly crashing worker's backoff.
+                        if (++healthy >= 10)
+                            failures = 0;
+                    }
+                }
+                catch (Exception error)
+                {
+                    if (!stop.IsCancellationRequested)
+                    {
+                        int? code = child == null ? null : child.ExitCode;
+                        failure = error.GetType().Name + ": " + error.Message + " · Worker " + pid +
+                            (code.HasValue ? " · Exit 0x" + unchecked((uint)code.Value).ToString("X8") : "");
+                        lock (gate)
+                            latest = new GpuData { Name = latest.Name, Error = "GPU unavailable · Retrying shortly" };
+                    }
+                }
+                finally
+                {
+                    lock (gate) { active = null; }
+                    Close(child);
+                }
+                if (stop.IsCancellationRequested)
+                    break;
+                int retry = RetryDelay(++failures, retryMs);
+                Record("gpu.failure", failure + " · Retry in " + retry + " ms");
+                recovering = true;
+                try { await Task.Delay(retry, stop.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { break; }
+            }
+        }
+
+        static void ObserveFailure(Task task)
+        {
+            // A killed process can complete its pending read after the timeout.
+            task.ContinueWith(t => { var ignored = t.Exception; }, TaskContinuationOptions.OnlyOnFaulted);
         }
 
         public void Dispose()
         {
-            Close();
+            IGpuProcess child;
+            Task task;
+            lock (gate)
+            {
+                if (disposed)
+                    return;
+                disposed = true;
+                child = active;
+                task = monitor;
+            }
+            stop.Cancel();
+            Close(child);
+            if (task == null)
+                stop.Dispose();
+            else
+                task.ContinueWith(t => { var ignored = t.Exception; stop.Dispose(); }, TaskScheduler.Default);
         }
     }
 }

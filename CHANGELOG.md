@@ -2,6 +2,13 @@
 
 **English** | [简体中文](CHANGELOG.zh-CN.md)
 
+## 2026-11-17 — Isolated GPU monitoring
+
+- Move NVML into an owned background process with a five-second response deadline,
+  automatic delayed recovery, and cleanup when the parent exits. Keep other monitoring responsive.
+- Add bounded local fault/recovery logs, worker crash/hang tests, and repair handling
+  for the GPU child while retaining window preferences and OC/cooling protection.
+
 ## 2026-11-15 — Live CPU limits
 
 - Show read-only IccMax, favored/other P-core and E-core ratio references, highlighting

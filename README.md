@@ -107,6 +107,12 @@ they are not an internet speed test. Startup, adapter changes, and counter reset
 a fresh sampling interval. Idle traffic shows zero; unavailable sources show a missing
 reading. History stays in memory, and normal sampling does not write periodic snapshots.
 
+GPU readings come from an isolated background process. If NVML crashes or stops
+responding, GPU values become unavailable while the window and other monitoring
+continue; the reader restarts automatically with a bounded retry delay. Fault and
+recovery events are saved in `%LOCALAPPDATA%\HardwareDeck\runtime.log` (1 MiB plus
+one rotated copy), without per-sample logging.
+
 ## Temperature-source configuration
 
 The first build creates a local, Git-ignored `sensor-labels.json` from

@@ -47,7 +47,7 @@ try {
     & $launcher -Basic -Rebuild
     Assert-True ((Get-FileHash -LiteralPath $config).Hash -eq $configHash) 'Rebuild must preserve local sensor preferences.'
 
-    foreach($arguments in @('--unknown','--test-modes ignored.json')){
+    foreach($arguments in @('--unknown','--test-modes ignored.json','--gpu-worker extra')){
         $process=Microsoft.PowerShell.Management\Start-Process -FilePath $target -ArgumentList $arguments -WindowStyle Hidden -PassThru
         try {
             if(-not $process.WaitForExit(10000)){$process.Kill();$process.WaitForExit();throw "Invalid arguments opened a persistent process: $arguments"}
@@ -86,6 +86,28 @@ try {
                 Assert-True (-not $reply.Success) "Malformed input must not report success: $($case.Name)"
             }
         }finally{$worker.Dispose()}
+    }
+    # The GPU helper must reject missing/invalid ownership handshakes before NVML loads.
+    foreach($inputText in @('', "invalid`r`n", (('x'*65)+"`r`n"))){
+        $gpu=New-Object Diagnostics.Process
+        $gpu.StartInfo=New-Object Diagnostics.ProcessStartInfo
+        $gpu.StartInfo.FileName=$target
+        $gpu.StartInfo.Arguments='--gpu-worker'
+        $gpu.StartInfo.UseShellExecute=$false
+        $gpu.StartInfo.CreateNoWindow=$true
+        $gpu.StartInfo.RedirectStandardInput=$true
+        $gpu.StartInfo.RedirectStandardOutput=$true
+        $gpu.StartInfo.RedirectStandardError=$true
+        try {
+            [void]$gpu.Start()
+            $stdout=$gpu.StandardOutput.ReadToEndAsync()
+            $stderr=$gpu.StandardError.ReadToEndAsync()
+            try {$gpu.StandardInput.Write($inputText);$gpu.StandardInput.Close()} catch [IO.IOException] {}
+            if(-not $gpu.WaitForExit(10000)){$gpu.Kill();$gpu.WaitForExit();throw 'Invalid GPU handshake hung.'}
+            Assert-True ($gpu.ExitCode -eq 2) 'GPU worker rejects invalid startup without opening the dashboard.'
+            Assert-True ([string]::IsNullOrEmpty($stdout.Result)) 'Invalid GPU startup returns no sensor data.'
+            Assert-True ([string]::IsNullOrWhiteSpace($stderr.Result)) 'Invalid GPU startup exits quietly.'
+        } finally {$gpu.Dispose()}
     }
     Write-Host "$count clean-checkout and packaging checks passed."
 } finally {

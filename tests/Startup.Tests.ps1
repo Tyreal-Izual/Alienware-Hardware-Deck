@@ -104,9 +104,18 @@ $gui | Add-Member ScriptMethod WaitForExit { param($timeout) $true }
 $gui | Add-Member ScriptMethod Dispose { }
 $worker=[pscustomobject]@{SessionId=$gui.SessionId;MainModule=$gui.MainModule;Id=2;MainWindowHandle=[IntPtr]::Zero}
 $worker | Add-Member ScriptMethod Dispose { }
+$worker | Add-Member ScriptMethod WaitForExit { param($timeout) $script:helperWaits++; $true }
+$script:helperWaits=0
+$script:workerCommand='"' + $plan.Executable + '" --preset-worker'
+$script:workerParent=1
 $script:fakeProcesses=@($gui)
 function Get-Process { param($Name,$ErrorAction) $script:fakeProcesses }
-function Get-CimInstance { param($ClassName,$Filter) [pscustomobject]@{ProcessId=1} }
+function Get-CimInstance {
+    param($ClassName,$Filter)
+    if ($Filter -eq 'ProcessId = 2') {
+        [pscustomobject]@{ProcessId=2;ParentProcessId=$script:workerParent;CommandLine=$script:workerCommand}
+    } else { [pscustomobject]@{ProcessId=1;ParentProcessId=0;CommandLine='dashboard'} }
+}
 function Invoke-CimMethod { param($InputObject,$MethodName) [pscustomobject]@{Sid=$plan.UserSid} }
 try {
     Close-DeckExistingDashboard -Root $root -Plan $plan -ValidateOnly
@@ -114,6 +123,17 @@ try {
     $script:fakeProcesses=@($gui,$worker)
     Assert-Rejected { Close-DeckExistingDashboard -Root $root -Plan $plan -ValidateOnly } 'An active worker must block repair preflight.'
     Assert-True ($script:closeCalls -eq 0) 'An active worker leaves the GUI intact.'
+    $script:workerCommand='"' + $plan.Executable + '" --gpu-worker'
+    Close-DeckExistingDashboard -Root $root -Plan $plan -ValidateOnly
+    Assert-True ($script:closeCalls -eq 0 -and $script:helperWaits -eq 0) 'Owned GPU reader allows read-only repair preflight.'
+    $script:workerParent=99
+    Assert-Rejected { Close-DeckExistingDashboard -Root $root -Plan $plan -ValidateOnly } 'A worker without a matching GUI parent is not ignored.'
+    $script:workerParent=1
+    $script:workerCommand += ' extra'
+    Assert-Rejected { Close-DeckExistingDashboard -Root $root -Plan $plan -ValidateOnly } 'Extra worker arguments do not bypass repair preflight.'
+    $script:workerCommand='"' + $plan.Executable + '" --gpu-worker'
+    Close-DeckExistingDashboard -Root $root -Plan $plan
+    Assert-True ($script:closeCalls -eq 1 -and $script:helperWaits -eq 1) 'Close the GUI normally and wait for its owned GPU reader to exit.'
 } finally {
     Remove-Item function:Get-Process,function:Get-CimInstance,function:Invoke-CimMethod
 }

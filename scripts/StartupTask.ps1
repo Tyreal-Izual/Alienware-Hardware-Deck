@@ -324,6 +324,8 @@ function Close-DeckExistingDashboard {
     $paths = @([IO.Path]::GetFullPath((Join-Path $Root 'HardwareDeck.exe')), $Plan.Executable)
     $session = [Diagnostics.Process]::GetCurrentProcess().SessionId
     $owned = @()
+    $helpers = @()
+    $candidates = @()
     $processes = @(Get-Process -Name HardwareDeck -ErrorAction SilentlyContinue)
     try {
         foreach ($process in $processes) {
@@ -332,16 +334,34 @@ function Close-DeckExistingDashboard {
             if ($path -notin $paths) { continue }
             $native = Get-CimInstance Win32_Process -Filter ('ProcessId = ' + $process.Id)
             if ((Invoke-CimMethod -InputObject $native -MethodName GetOwnerSid).Sid -ne $Plan.UserSid) { continue }
-            if ($process.MainWindowHandle -eq [IntPtr]::Zero) {
-                throw 'HardwareDeck is starting or a background operation is active. Retry after it finishes.'
+            $candidates += [pscustomobject]@{ Process=$process; Native=$native; Path=$path }
+        }
+        foreach ($candidate in $candidates) {
+            if ($candidate.Process.MainWindowHandle -ne [IntPtr]::Zero) {
+                $owned += $candidate.Process
+                continue
             }
-            $owned += $process
+            $parent = @($candidates | Where-Object {
+                $_.Process.Id -eq $candidate.Native.ParentProcessId -and
+                $_.Process.MainWindowHandle -ne [IntPtr]::Zero -and $_.Path -ieq $candidate.Path
+            })
+            $gpuCommands = @(('"' + $candidate.Path + '" --gpu-worker'), ($candidate.Path + ' --gpu-worker'))
+            if ($parent.Count -eq 1 -and $candidate.Native.CommandLine -cin $gpuCommands) {
+                $helpers += $candidate.Process
+                continue
+            }
+            throw 'HardwareDeck is starting or a background operation is active. Retry after it finishes.'
         }
         if ($ValidateOnly) { return }
         # Check for workers before closing any dashboard window.
         foreach ($process in $owned) {
             if (-not $process.CloseMainWindow() -or -not $process.WaitForExit(10000)) {
                 throw 'Close the existing HardwareDeck window before retrying.'
+            }
+        }
+        foreach ($helper in $helpers) {
+            if (-not $helper.WaitForExit(3000)) {
+                throw 'The GPU reader has not finished closing. Retry after it exits.'
             }
         }
     } finally { foreach ($process in $processes) { $process.Dispose() } }

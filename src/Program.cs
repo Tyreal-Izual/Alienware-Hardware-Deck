@@ -14,10 +14,16 @@ namespace HardwareDeck
             CultureInfo.DefaultThreadCurrentUICulture = CultureInfo.GetCultureInfo("en-US");
             string root = AppDomain.CurrentDomain.BaseDirectory;
             bool worker = args.Length == 1 && args[0] == "--preset-worker";
+            bool gpuWorker = args.Length == 1 && args[0] == "--gpu-worker";
             bool probe = args.Length == 2 && args[0] == "--probe" && !string.IsNullOrWhiteSpace(args[1]);
             bool preview = (args.Length == 2 || (args.Length == 3 && args[2] == "--stay")) && args[0] == "--preview" && !string.IsNullOrWhiteSpace(args[1]);
-            if (args.Length != 0 && !probe && !preview && !worker)
+            if (args.Length != 0 && !probe && !preview && !worker && !gpuWorker)
                 return 2;
+            if (gpuWorker)
+                return GpuWorker.Run();
+            if (args.Length == 0)
+                AppDomain.CurrentDomain.UnhandledException += (sender, error) =>
+                    DiagnosticLog.Write("process.unhandled", Convert.ToString(error.ExceptionObject));
             try
             {
                 if (worker)
@@ -51,6 +57,7 @@ namespace HardwareDeck
             }
             catch (Exception ex)
             {
+                DiagnosticLog.Write("process.error", ex.ToString());
                 try
                 {
                     SnapshotFile.Write(System.IO.Path.Combine(SnapshotFile.DataDirectory, "error.json"), new { Error = ex.ToString(), At = DateTime.UtcNow.ToString("o") });

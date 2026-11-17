@@ -103,6 +103,11 @@ CPU 上限是当前持续封装功耗上限 PL1，会随模式变化更新。
 空闲流量显示零；数据源不可用时显示缺失读数。
 历史记录保存在内存中，正常采样不会定期写入快照。
 
+GPU 读数来自独立后台进程。NVML 崩溃或停止响应时，GPU 暂时显示不可用，
+窗口及其他监控继续运行；采集进程会在有上限的延迟后自动重启。
+故障与恢复事件保存在 `%LOCALAPPDATA%\HardwareDeck\runtime.log`
+（1 MiB 加一份轮转副本），不会逐次记录采样。
+
 ## 温度源配置
 
 首次构建会根据 [sensor-labels.example.json](sensor-labels.example.json)

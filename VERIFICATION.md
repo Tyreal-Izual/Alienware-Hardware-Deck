@@ -2,6 +2,37 @@
 
 **English** | [简体中文](VERIFICATION.zh-CN.md)
 
+## GPU process isolation (2026-11-17)
+
+Windows recorded an NVML access violation in `NvidiaReader.Read` during a driver
+installation on 2026-11-15. Other recorded access violations had no identified module;
+this change contains NVML faults rather than claiming to explain every prior crash.
+
+All 676 automated checks passed: 280 core, 60 startup-task, 39 packaging, 69 GPU
+isolation/recovery/logging, and 228 display checks. Test-only child processes exercise
+native-style exit codes, hangs before/after a valid frame, malformed/oversized replies,
+driver-error responses, replacement ordering, canceled retries, and parent-crash job
+cleanup. A windowed-EXE fixture covers redirected UTF-8 pipes without a console code
+page and a five-second timeout when startup input stays open but silent. The latter
+regression caught a blocking `Console.In` wrapper; direct stream reads fixed it.
+Logs are checked for rotation and harmless write failures. Display tests retain
+CPU/network updates during GPU failure and preserve 1080p layout and preset guards.
+
+A read-only RTX 4090 probe returned live readings with no NVML module in its parent.
+A separate live harness terminated only its owned GPU reader: values became unavailable,
+a replacement resumed real readings after the five-second retry, and cleanup passed.
+It did not reproduce a driver crash or change hardware settings. Evidence is in
+`.local/gpu-isolation/probe-evidence.json` and `live-recovery.json`.
+
+The protected installation was repaired and checked healthy. Installed file hashes
+matched, window preferences were byte-identical, and the AWCC CPU-activation log was
+unchanged. The live fullscreen view showed GPU/CPU/fan/network data and verified P/OC01;
+one dashboard process owned one GPU child. Publication review also repaired an installation
+with an active GPU child: both old processes exited, the corrected build returned live
+GPU readings, and preferences/CPU activation logs stayed unchanged. Evidence:
+`.local/gpu-isolation/deployment.json` and `.local/nvml-review/deployment.json`.
+No long-duration or real driver-reinstallation stability claim is made by these checks.
+
 ## Live CPU limits review (2026-11-15)
 
 All 590 automated checks passed: 51 sensor/configuration/voltage, 32 window state,

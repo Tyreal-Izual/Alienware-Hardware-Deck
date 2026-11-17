@@ -15,6 +15,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1 -OutputPath .local
 powershell -NoProfile -ExecutionPolicy Bypass -File Test.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Packaging.Tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Startup.Tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Gpu.Tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1
 ```
 
@@ -31,6 +32,7 @@ Framework 引用和生产源码发现逻辑。直接位于 `src` 下的所有生
 | --- | --- |
 | `Test.ps1` | 传感器契约、窗口状态、网络速率、预设策略、读回、worker 生命周期 |
 | `tests/Packaging.Tests.ps1` | 首次构建、资源复制、启动器行为、无效 worker 请求 |
+| `tests/Gpu.Tests.ps1` | 子进程崩溃／卡住、恢复、管道校验、父进程退出清理及有界日志 |
 | `tests/Display.Tests.ps1` | 实际 WPF 布局、功耗／OC 状态、过期数据与 1080p 缩放 |
 
 自动化测试使用样例数据或模拟硬件后端，不会改变硬件模式。
@@ -57,7 +59,9 @@ CI 执行相同命令，但没有 Alienware 硬件。实机验收见 [VERIFICATI
 | 界面分区 | [DeckWindow.Presets.cs](src/DeckWindow.Presets.cs)：控制状态与请求；[DeckWindow.History.cs](src/DeckWindow.History.cs)：曲线；[DeckWindow.Tiles.cs](src/DeckWindow.Tiles.cs)：可复用传感器卡片 |
 | 视图 | [View.xaml](View.xaml)：英文标签、布局和样式 |
 | 采样 | [Collector.cs](src/Collector.cs)：协调各读取器；[Snapshot.cs](src/Snapshot.cs)：共享数据和显式快照序列化 |
-| 传感器 | [SystemReader.cs](src/SystemReader.cs)、[CpuTelemetry.cs](src/CpuTelemetry.cs)、[XtuVoltageReader.cs](src/XtuVoltageReader.cs)、[NvidiaReader.cs](src/NvidiaReader.cs)、[NetworkReader.cs](src/NetworkReader.cs) |
+| 传感器 | [SystemReader.cs](src/SystemReader.cs)、[CpuTelemetry.cs](src/CpuTelemetry.cs)、[XtuVoltageReader.cs](src/XtuVoltageReader.cs)、[NetworkReader.cs](src/NetworkReader.cs) |
+| GPU 隔离 | [NvidiaReader.cs](src/NvidiaReader.cs)：非阻塞缓存与恢复；[GpuProcess.cs](src/GpuProcess.cs)：进程／Job 所有权；[GpuWorker.cs](src/GpuWorker.cs)：管道协议；[NvmlReader.cs](src/NvmlReader.cs)：仅在子进程使用的原生读取器 |
+| 诊断 | [DiagnosticLog.cs](src/DiagnosticLog.cs)：有大小限制的故障／恢复及托管异常日志 |
 | 固件 | [AwccReader.cs](src/AwccReader.cs)：WMI 温度、风扇与受保护的散热写入；[ThermalModes.cs](src/ThermalModes.cs)：发现的预设元数据 |
 | 配置 | [SensorConfiguration.cs](src/SensorConfiguration.cs)：传感器标签和 CPU 温度源选择 |
 | 预设规则 | [PresetControl.cs](src/PresetControl.cs)：标准模式常量／顺序／名称、目标解析和校验事务 |
@@ -76,6 +80,13 @@ CI 执行相同命令，但没有 Alienware 硬件。实机验收见 [VERIFICATI
 散热模式变化时，会强制刷新 CPU 功耗上限读回。
 窗口在自身 dispatcher 上更新，曲线历史在内存中保留 120 秒。
 较新的 worker 结果优先于较旧的采样快照。
+
+**GPU 采样：**同一个 EXE 的内部 `--gpu-worker` 入口每秒读取 NVML，发送有长度限制的 JSON 行。
+它不加载界面，也不改变硬件设置。父进程先将子进程纳入随关闭清理的 Windows Job，
+再发送启动握手；采集器仅访问内存缓存。五秒响应期限与单调时钟过期判断会丢弃停滞数据。
+故障时清空 GPU 读数、关闭自己拥有的子进程，按 5/10/20/40/60 秒延迟重试，上限 60 秒。
+连续十帧正常读数重置延迟。关闭面板会取消重试并释放 Job。
+测试使用独立样例程序，包括窗口型 EXE 管道与启动无输入时的超时检查。
 
 **预设切换：**界面通过 `PresetPolicy` 解析请求，锁定控件并启动 `PresetWorker`。
 Worker 获取最新状态，使用 `LocalPresetBackend` 调用 AWCC 或允许列表内的散热写入接口。

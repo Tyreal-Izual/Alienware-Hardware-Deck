@@ -15,6 +15,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Build.ps1 -OutputPath .local
 powershell -NoProfile -ExecutionPolicy Bypass -File Test.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Packaging.Tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Startup.Tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Gpu.Tests.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/Display.Tests.ps1
 ```
 
@@ -33,6 +34,7 @@ list of production files. Display tests use the actual built application assembl
 | --- | --- |
 | `Test.ps1` | Sensor contracts, window state, network rates, preset policy, readback, worker lifecycle |
 | `tests/Packaging.Tests.ps1` | First build, resource copying, launcher behavior, invalid worker requests |
+| `tests/Gpu.Tests.ps1` | Child crashes/hangs, recovery, pipe validation, parent-exit cleanup, and bounded logs |
 | `tests/Display.Tests.ps1` | Actual WPF layout, power/OC states, stale data, and 1080p scaling |
 
 Automated tests use fixtures or fake hardware backends and do not change hardware modes.
@@ -59,7 +61,9 @@ administrator access. Diagnostics contain machine information and stay local by 
 | UI sections | [DeckWindow.Presets.cs](src/DeckWindow.Presets.cs): control states and requests; [DeckWindow.History.cs](src/DeckWindow.History.cs): charts; [DeckWindow.Tiles.cs](src/DeckWindow.Tiles.cs): reusable sensor tiles |
 | View | [View.xaml](View.xaml): English labels, layout, and styles |
 | Sampling | [Collector.cs](src/Collector.cs): coordinates readers; [Snapshot.cs](src/Snapshot.cs): shared data and explicit snapshot serialization |
-| Sensors | [SystemReader.cs](src/SystemReader.cs), [CpuTelemetry.cs](src/CpuTelemetry.cs), [XtuVoltageReader.cs](src/XtuVoltageReader.cs), [NvidiaReader.cs](src/NvidiaReader.cs), [NetworkReader.cs](src/NetworkReader.cs) |
+| Sensors | [SystemReader.cs](src/SystemReader.cs), [CpuTelemetry.cs](src/CpuTelemetry.cs), [XtuVoltageReader.cs](src/XtuVoltageReader.cs), [NetworkReader.cs](src/NetworkReader.cs) |
+| GPU isolation | [NvidiaReader.cs](src/NvidiaReader.cs): nonblocking cache and recovery; [GpuProcess.cs](src/GpuProcess.cs): owned process/job; [GpuWorker.cs](src/GpuWorker.cs): pipe protocol; [NvmlReader.cs](src/NvmlReader.cs): child-only native getters |
+| Diagnostics | [DiagnosticLog.cs](src/DiagnosticLog.cs): bounded fault/recovery and managed-error logs |
 | Firmware | [AwccReader.cs](src/AwccReader.cs): WMI temperatures, fans, and guarded cooling writes; [ThermalModes.cs](src/ThermalModes.cs): discovered preset metadata |
 | Configuration | [SensorConfiguration.cs](src/SensorConfiguration.cs): sensor labels and CPU-temperature selection |
 | Preset rules | [PresetControl.cs](src/PresetControl.cs): standard mode constants/order/names, target resolution, and verification transaction |
@@ -79,6 +83,15 @@ create additional windows, collectors, or control paths.
 snapshot. It forces a fresh CPU-limit read when the cooling mode changes. The window
 updates on its dispatcher and retains 120 seconds of chart history in memory. A newer
 worker result takes precedence over an older sampling snapshot.
+
+**GPU sampling:** the same EXE's internal `--gpu-worker` entry reads NVML once per
+second and sends bounded JSON lines. It loads no view and changes no hardware settings.
+The parent assigns a kill-on-close Windows job before sending the startup handshake;
+the collector only reads an in-memory cache. A five-second response deadline and
+monotonic freshness check discard stalled data. Failure clears GPU values, closes the
+owned child, and retries after 5/10/20/40/60 seconds (60-second cap). Ten healthy frames
+reset the backoff. Closing the dashboard cancels retries and releases the job.
+Tests use separate fixture executables, including windowed EXE pipes and silent-startup timeouts.
 
 **Preset changes:** the UI resolves the request through `PresetPolicy`, locks the
 controls, and starts `PresetWorker`. The worker obtains fresh state and uses

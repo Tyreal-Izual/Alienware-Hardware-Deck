@@ -35,7 +35,7 @@ working directory. No `$(Arg0)` substitution or arbitrary diagnostic arguments a
 
 The scheduler uses `IgnoreNew` for duplicate starts. A per-user, session-local mutex
 also prevents duplicate dashboard windows across direct and managed launches. Probe,
-preview and preset-worker processes keep their separate entry points. A normal window
+preview, GPU-reader and preset-worker processes keep their separate entry points. A normal window
 can finish closing during its existing Enable sensors elevation handoff.
 
 Monitor identity, size, fullscreen/maximized state and pinning still use
@@ -64,6 +64,10 @@ Manage-HardwareDeck.cmd Uninstall
   shortcut. Application files and window preferences are retained. No unrelated task,
   Dell service, or other user's registration is removed. Modified or unrelated
   same-name shortcuts are preserved rather than overwritten or deleted.
+
+Repair allows the dashboard's recognized GPU-reader child to close with its parent
+and waits for it to exit before copying files. Active OC/preset workers, unrelated
+children, and unrecognized background processes still block repair.
 
 The task name is `\HardwareDeck\Dashboard-<SID>`. Repair/removal verifies the management
 marker before changing an existing task. Unexpected ownership, writable installed code,

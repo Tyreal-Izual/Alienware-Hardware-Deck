@@ -19,6 +19,9 @@ jobs:
       - name: Startup task contract
         shell: powershell
         run: ./tests/Startup.Tests.ps1
+      - name: GPU worker isolation and recovery
+        shell: powershell
+        run: ./tests/Gpu.Tests.ps1
       - name: WPF layout and refresh
         shell: powershell
         run: ./tests/Display.Tests.ps1

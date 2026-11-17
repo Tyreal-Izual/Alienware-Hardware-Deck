@@ -237,6 +237,27 @@ public static class DisplayTests
             "Stale settings cannot remain highlighted");
     }
 
+    static void TestGpuRecovery(DeckWindow deck, Window window)
+    {
+        var sample = Fixture();
+        sample.Gpu = new GpuData { Error = "GPU unavailable · Retrying shortly" };
+        sample.CpuLoad = 56;
+        Call(deck, "Update", sample);
+        Check(((TextBlock)window.FindName("GpuLoad")).Text == "—" &&
+            ((TextBlock)window.FindName("GpuTemp")).Text == "—" &&
+            ((TextBlock)window.FindName("GpuHint")).Text == sample.Gpu.Error,
+            "GPU failure clears readings and explains recovery without closing the dashboard");
+        Check(((TextBlock)window.FindName("CpuLoad")).Text == "56 %" &&
+            ((TextBlock)window.FindName("LiveState")).Text == "LIVE" &&
+            ((TextBlock)window.FindName("DownloadChartCurrent")).Text == "1.3 MB/s",
+            "CPU and network continue updating while GPU is unavailable");
+        sample.Gpu = new GpuData { Temperature = 42, Load = 12 };
+        Call(deck, "Update", sample);
+        Check(((TextBlock)window.FindName("GpuTemp")).Text == "42.0 °C" &&
+            ((TextBlock)window.FindName("GpuLoad")).Text == "12 %",
+            "New GPU frames restore readings without restarting the window");
+    }
+
     static void TestFirmwareState(DeckWindow deck, Window window)
     {
         var stateLabel = (TextBlock)window.FindName("ModeCurrent");
@@ -561,6 +582,7 @@ public static class DisplayTests
         TestModeButtons(deck, window);
         TestFirmwareState(deck, window);
         TestCpuLimitStrip(deck, window);
+        TestGpuRecovery(deck, window);
         TestPowerLabels(deck, window);
         sample.CapturedAt = DateTime.UtcNow.ToString("o");
         Call(deck, "Update", sample);
