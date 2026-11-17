@@ -12,8 +12,9 @@ All 676 automated checks passed: 280 core, 60 startup-task, 39 packaging, 69 GPU
 isolation/recovery/logging, and 228 display checks. Test-only child processes exercise
 native-style exit codes, hangs before/after a valid frame, malformed/oversized replies,
 driver-error responses, replacement ordering, canceled retries, and parent-crash job
-cleanup. A windowed-EXE fixture covers redirected UTF-8 pipes without a console code
-page and a five-second timeout when startup input stays open but silent. The latter
+cleanup. Recovery fixtures use windowed EXEs and explicit UTF-8 streams to cover
+noninteractive CI without a console code page. They also cover a five-second timeout
+when startup input stays open but silent. The latter
 regression caught a blocking `Console.In` wrapper; direct stream reads fixed it.
 Logs are checked for rotation and harmless write failures. Display tests retain
 CPU/network updates during GPU failure and preserve 1080p layout and preset guards.

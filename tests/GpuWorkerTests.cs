@@ -40,9 +40,11 @@ public static class GpuWorkerTests
 
     static int Fake(string kind)
     {
+        // CI may provide redirected handles without an attached console/code page.
+        Console.SetIn(new StreamReader(Console.OpenStandardInput(), Encoding.UTF8));
+        Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new UTF8Encoding(false)) { AutoFlush = true });
         if (Console.ReadLine() != GpuWorker.Handshake)
             return 2;
-        Console.OutputEncoding = new UTF8Encoding(false);
         if (kind == "crash")
         {
             using (var self = Process.GetCurrentProcess())
@@ -82,7 +84,7 @@ public static class GpuWorkerTests
         }
     }
 
-    static void Recovery(string kind)
+    static void Recovery(string kind, string fixture)
     {
         int starts = 0;
         var events = new ConcurrentQueue<string>();
@@ -93,7 +95,7 @@ public static class GpuWorkerTests
             int attempt = Interlocked.Increment(ref starts);
             if (attempt > 1)
                 previousExited = firstHandle == null || firstHandle.HasExited;
-            var child = new GpuProcess(executable, "--fake-gpu " + (attempt == 1 ? kind : "normal"));
+            var child = new GpuProcess(fixture, "--fake-gpu " + (attempt == 1 ? kind : "normal"));
             if (attempt == 1)
             {
                 // An immediately crashing child can exit before this test attaches.
@@ -115,8 +117,16 @@ public static class GpuWorkerTests
             for (int i = 0; i < 1000; i++)
                 reader.Read();
             Check(timer.ElapsedMilliseconds < 300, kind + ": cached reads remain responsive while unavailable");
-            Wait(() => events.Any(e => e.StartsWith("gpu.recovered")) && reader.Read().Temperature == 42,
-                kind + ": a replacement returns valid readings");
+            try
+            {
+                Wait(() => events.Any(e => e.StartsWith("gpu.recovered")) && reader.Read().Temperature == 42,
+                    kind + ": a replacement returns valid readings");
+            }
+            catch
+            {
+                Console.Error.WriteLine(string.Join(Environment.NewLine, events));
+                throw;
+            }
             Check(previousExited && starts == 2, kind + ": replace only after the old worker exits");
             Check(events.Count(e => e.StartsWith("gpu.failure")) == 1, kind + ": no per-frame fault spam");
             if (kind == "crash")
@@ -263,7 +273,7 @@ public static class GpuWorkerTests
                     "Production worker protocol runs in a winexe without a console code page or NVML");
             }
             foreach (string kind in new[] { "crash", "hang", "stale", "invalid", "oversized", "error" })
-                Recovery(kind);
+                Recovery(kind, args[1]);
             Lifetime(args[0]);
             Logs(args[0]);
             using (var current = Process.GetCurrentProcess())
